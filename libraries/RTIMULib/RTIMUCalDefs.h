@@ -21,17 +21,24 @@
 //  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// UU: This code was changed to
+// include raw files for accelerometer ellipsoid compensation
+
 #ifndef RTIMUCALDEFS_H
 #define RTIMUCALDEFS_H
 
 #define RTIMUCALDEFS_DEFAULT_MIN        1000                // a large min
 #define RTIMUCALDEFS_DEFAULT_MAX        -1000               // a small max
 
-#define	RTIMUCALDEFS_MAX_MAG_SAMPLES	   20000            // max saved mag records
+#define	RTIMUCALDEFS_MAX_MAG_SAMPLES	           20000            // max saved mag records
+#define	RTIMUCALDEFS_MAX_ACC_SAMPLES	           20000            // max saved acc records
+#define	RTIMUCALDEFS_MAX_TEMPERATURE_SAMPLES	   20000            // max saved acc records [0:0.01:90]
 
-#define RTIMUCALDEFS_OCTANT_MIN_SAMPLES    200              // must have at least this in each octant
+#define RTIMUCALDEFS_OCTANT_MIN_SAMPLES    400              // must have at least this in each octant
 
-#define RTIMUCALDEFS_ELLIPSOID_MIN_SPACING  0.1f            // min distnace between ellipsoid samples to be recorded
+#define RTIMUCALDEFS_ELLIPSOID_MIN_SPACING  0.1f            // min distance between ellipsoid samples to be recorded
+#define RTIMUCALDEFS_ACCEL_ELLIPSOID_MIN_SPACING  0.01f     // min distance between ellipsoid samples to be recorded
+#define RTIMUCALDEFS_TEMPERATURE_MIN_SPACING  0.01f         // min temperature distance between samples to be recorded
 
 //  Octant defs
 
@@ -51,7 +58,17 @@
 #define RTIMUCALDEFS_MAG_RAW_FILE          "magRaw.dta"     // the raw sample file - input to ellispoid fit code
 #define RTIMUCALDEFS_MAG_CORR_FILE         "magCorr.dta"    // the output from the ellipsoid fit code
 
-#define RTIMUCALDEFS_OCTAVE_CODE           "RTEllipsoidFit.m"
-#define RTIMUCALDEFS_OCTAVE_COMMAND        "octave RTEllipsoidFit.m"
+#define RTIMUCALDEFS_ACCEL_RAW_FILE        "accelRaw.dta"     // the raw sample file - input to ellispoid fit code
+#define RTIMUCALDEFS_ACCEL_CORR_FILE       "accelCorr.dta"    // the output from the ellipsoid fit code
+
+#define RTIMUCALDEFS_TEMPERATURE_RAW_FILE  "temperatureRaw.dta"     // the raw sample file - input to temperature fit code
+#define RTIMUCALDEFS_TEMPERATURE_CORR_FILE "temperatureCorr.dta"    // the output from the temperature fit code
+
+#define RTIMUCALDEFS_OCTAVE_CODE             "RTEllipsoidFitMag.m"
+#define RTIMUCALDEFS_OCTAVE_CODE_ACCEL       "RTEllipsoidFitAccel.m"
+#define RTIMUCALDEFS_OCTAVE_CODE_TEMPERATURE "RTFitTemperaturel.m"
+#define RTIMUCALDEFS_OCTAVE_COMMAND              "octave RTEllipsoidFitMag.m"
+#define RTIMUCALDEFS_OCTAVE_COMMAND_ACCEL        "octave RTEllipsoidFitAccel.m"
+#define RTIMUCALDEFS_OCTAVE_COMMAND_TEMPERATURE  "octave RTFitTemperature.m"
 
 #endif // RTIMUCALDEFS_H

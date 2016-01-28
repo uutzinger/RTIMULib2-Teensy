@@ -106,6 +106,10 @@ public:
     void setAccelEnable(bool enable) { m_fusion->setAccelEnable(enable);}
     void setCompassEnable(bool enable) { m_fusion->setCompassEnable(enable);}
 
+    const bool getGyroEnable() { return m_fusion->getGyroEnable();}
+    const bool getAccelEnable() { return m_fusion->getAccelEnable();}
+    const bool getCompassEnable() { return m_fusion->getCompassEnable();}
+
     //  call the following to enable debug messages
 
     void setDebugEnable(bool enable) { m_fusion->setDebugEnable(enable); }
@@ -134,8 +138,16 @@ public:
 
     void setAccelCalibrationMode(bool enable) { m_accelCalibrationMode = enable; }
 
-    //  setCalibrationData configures the cal data from settings and also enables use if valid
+    //  setTemperatureCalibrationMode() turns off use of cal data so that raw data can be accumulated
+    //  to derive calibration data
+    void setTemperatureCalibrationMode(bool enable) { m_temperatureCalibrationMode = enable; }
 
+    //  setGyroCalibrationMode() turns off use of cal data so that raw data can be accumulated
+    //  to derive calibration data
+    void setGyroCalibrationMode(bool enable) { m_gyroCalibrationMode = enable; }
+    
+    
+    //  setCalibrationData configures the cal data from settings and also enables use if valid
     void setCalibrationData();
 
     //  getCompassCalibrationValid() returns true if the compass min/max calibration data is being used
@@ -154,12 +166,31 @@ public:
 
     bool getAccelCalibrationValid() { return !m_accelCalibrationMode && m_settings->m_accelCalValid; }
 
-    const RTVector3& getGyro() { return m_imuData.gyro; }   // gets gyro rates in radians/sec
-    const RTVector3& getAccel() { return m_imuData.accel; } // get accel data in gs
-    const RTVector3& getCompass() { return m_imuData.compass; } // gets compass data in uT
+    //  getAccelCalibrationEllipsoidValid() returns true if the compass ellipsoid calibration data is being used
+    bool getAccelCalibrationEllipsoidValid() { return !m_accelCalibrationMode && m_settings->m_accelCalEllipsoidValid; }
+
+    //  getTemperatureCalibrationValid() returns true if temperature calibrated and in calibration mode
+    bool getTemperatureCalibrationValid() { return !m_temperatureCalibrationMode && m_settings->m_temperatureCalValid; }
+
+    //  getGyroCalibrationValid() returns true if the compass min/max calibration data is being used
+    bool getGyroCalibrationValid() { return !m_gyroCalibrationMode && m_settings->m_gyroBiasValid; }
+
+    bool getMotion()               { return m_imuData.motion; } // gets motion status
+
+    const RTVector3& getGyro()       { return m_imuData.gyro; }   // gets gyro rates in radians/sec
+    const RTVector3& getAccel()      { return m_imuData.accel; } // get accel data in gs
+    const RTVector3& getCompass()    { return m_imuData.compass; } // gets compass data in uT
+    const RTFLOAT& getIMUTemp()      { return m_imuData.IMUtemperature; } // gets temperature data in C
+    const RTFLOAT& getHumidityTemp() { return m_imuData.humidityTemperature; } // gets temperature data in C
+    const RTFLOAT& getPressureTemp() { return m_imuData.pressureTemperature; } // gets temperature data in C
+    const RTFLOAT& getTemp()         { return m_imuData.IMUtemperature; } // gets temperature data in C
 
     RTVector3 getAccelResiduals() { return m_fusion->getAccelResiduals(); }
 
+	//  adjusts max/min accelerometer calibration to read 1g earth acceleration, only run when no motion
+    void runtimeAdjustAccelCal();                           // adjusts accelerometer Max/Min so that scaler becomes 1
+
+	
 protected:
     void gyroBiasInit();                                    // sets up gyro bias calculation
     void handleGyroBias();                                  // adjust gyro for bias
@@ -169,8 +200,13 @@ protected:
 
     bool m_compassCalibrationMode;                          // true if cal mode so don't use cal data!
     bool m_accelCalibrationMode;                            // true if cal mode so don't use cal data!
+    bool m_temperatureCalibrationMode;                      // true if cal mode so don't use cal data!
+    bool m_gyroCalibrationMode;                             // true if cal mode so don't use cal data!
 
     RTIMU_DATA m_imuData;                                   // the data from the IMU
+
+    void updateTempBias(RTFLOAT senTemp);                   // Computes bias for raw data
+    void handleTempBias();                                  // Applies bias to raw data
 
     RTIMUSettings *m_settings;                              // the settings object pointer
 
@@ -182,8 +218,8 @@ protected:
     RTFLOAT m_gyroLearningAlpha;                            // gyro bias rapid learning rate
     RTFLOAT m_gyroContinuousAlpha;                          // gyro bias continuous (slow) learning rate
     int m_gyroSampleCount;                                  // number of gyro samples used
-
-    RTVector3 m_previousAccel;                              // previous step accel for gyro learning
+    
+    RTVector3 m_previousAccel;                              // previous step accel for gyro learningboo
 
     float m_compassCalOffset[3];
     float m_compassCalScale[3];

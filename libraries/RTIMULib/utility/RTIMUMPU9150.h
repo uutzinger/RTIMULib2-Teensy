@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -30,25 +30,47 @@
 //  Define this symbol to use cache mode
 
 #define MPU9150_CACHE_MODE
+#define MPU9150_FIFO_WITH_TEMP      1
+#define MPU9150_FIFO_WITH_COMPASS   1
 
 //  FIFO transfer size
 
-#define MPU9150_FIFO_CHUNK_SIZE     12                      // gyro and accels take 12 bytes
+#if MPU9150_FIFO_WITH_TEMP == 1
+    #if MPU9150_FIFO_WITH_COMPASS == 1
+        #define MPU9150_FIFO_CHUNK_SIZE 22           // adding compass/slave1 adds 6 bytes plus 2 bytes for status for AKA compass 
+    #else 
+        #define MPU9150_FIFO_CHUNK_SIZE 14           // adding temperature adds 2 bytes
+    #endif
+#else
+    #if MPU9150_FIFO_WITH_COMPASS == 1
+        #define MPU9150_FIFO_CHUNK_SIZE 20          // adding compass 8 bytes max
+    #else 
+        #define MPU9150_FIFO_CHUNK_SIZE 12          // gyro and accels take 12 bytes
+    #endif
+#endif
+
 
 #ifdef MPU9150_CACHE_MODE
 
 //  Cache mode defines
 
-#define MPU9150_CACHE_SIZE          8                       // number of chunks in a block
-#define MPU9150_CACHE_BLOCK_COUNT   8                      // number of cache blocks
+#define MPU9150_CACHE_SIZE          16                      // number of chunks in a block
+#define MPU9150_CACHE_BLOCK_COUNT   16                      // number of cache blocks
+
+#define TEMPERATURE_DELTA 0.05f                             // change in temperature necessary to recompute the biases
 
 typedef struct
 {
     unsigned char data[MPU9150_FIFO_CHUNK_SIZE * MPU9150_CACHE_SIZE];
     int count;                                              // number of chunks in the cache block
     int index;                                              // current index into the cache
-    unsigned char compass[8];                               // the raw compass readings for the block
-
+    // if temperature and compass are not read through FIFO
+    #if MPU9150_FIFO_WITH_COMPASS == 0
+    unsigned char compass[8];                               // the raw compass readings for the block, 6 or 8 bytes
+    #endif
+    #if MPU9150_FIFO_WITH_TEMP == 0
+    unsigned char temperature[2];                           // the raw temperature reading
+    #endif
 } MPU9150_CACHE_BLOCK;
 
 #endif
@@ -81,7 +103,7 @@ private:
     bool resetFifo();
 
     bool m_firstTime;                                       // if first sample
-
+    RTFLOAT m_IMUtemperature_previous;
     unsigned char m_slaveAddr;                              // I2C address of MPU9150
 
     unsigned char m_lpf;                                    // low pass filter setting
@@ -93,7 +115,8 @@ private:
     RTFLOAT m_accelScale;
 
     bool m_compassIs5883;                                   // if it is an MPU-6050/HMC5883 combo
-    int m_compassDataLength;                                // 8 for MPU-9150, 6 for HMC5883
+    unsigned int m_fifoChunkLength;                         // depending on compass found, FIFO data length needs to be adjusted
+    unsigned int m_compassDataLength;                       // 8 for MPU-9150, 6 for HMC5883
     RTFLOAT m_compassAdjust[3];                             // the compass fuse ROM values converted for use
 
 #ifdef MPU9150_CACHE_MODE

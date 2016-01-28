@@ -74,8 +74,8 @@ bool RTPressureBMP180::pressureInit()
 bool RTPressureBMP180::pressureRead(RTIMU_DATA& data)
 {
     data.pressureValid = false;
-    data.temperatureValid = false;
-    data.temperature = 0;
+    data.pressureTemperatureValid = false;
+    data.pressureTemperature = 0;
     data.pressure = 0;
 
     if (m_state == BMP180_STATE_IDLE) {
@@ -91,8 +91,8 @@ bool RTPressureBMP180::pressureRead(RTIMU_DATA& data)
 
     if (m_validReadings) {
         data.pressureValid = true;
-        data.temperatureValid = true;
-        data.temperature = m_temperature;
+        data.pressureTemperatureValid = true;
+        data.pressureTemperature = m_pressureTemperature;
         data.pressure = m_pressure;
         // printf("P: %f, T: %f\n", m_pressure, m_temperature);
     }
@@ -164,7 +164,7 @@ void RTPressureBMP180::pressureBackground()
 
         int32_t X2 = (m_MC * 2048)  / (X1 + m_MD);
         int32_t B5 = X1 + X2;
-        m_temperature = (RTFLOAT)((B5 + 8) / 16) / (RTFLOAT)10;
+        m_pressureTemperature = (RTFLOAT)((B5 + 8) / 16) / (RTFLOAT)10;
 
         // calculate compensated pressure
 
@@ -206,7 +206,7 @@ void RTPressureBMP180::pressureBackground()
 
         m_validReadings = true;
 
-        // printf("UP = %d, P = %f, UT = %d, T = %f\n", m_rawPressure, m_pressure, m_rawTemperature, m_temperature);
+        // printf("UP = %d, P = %f, UT = %d, T = %f\n", m_rawPressure, m_pressure, m_rawTemperature, m_pressureTemperature);
         break;
     }
 }

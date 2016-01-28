@@ -24,6 +24,9 @@
 //  The MPU-9250 driver code is based on code generously supplied by
 //  staslock@gmail.com (www.clickdrive.io)
 
+// UU: This file was change to include
+// Sections for Accelerometer Ellipsoid Calibration
+// Sections for Temperature Compensation
 
 #include "RTIMUSettings.h"
 #include "utility/RTIMUMPU9150.h"
@@ -32,12 +35,16 @@
 #include "utility/RTIMUGD20M303DLHC.h"
 #include "utility/RTIMUGD20HM303DLHC.h"
 #include "utility/RTIMULSM9DS0.h"
+#include "utility/RTIMULSM9DS1.h"
 #include "utility/RTIMUBMX055.h"
 
 #include "utility/RTPressureBMP180.h"
 #include "utility/RTPressureLPS25H.h"
 #include "utility/RTPressureMS5611.h"
+#include "utility/RTHumidityHTS221.h"
+#include "utility/RTHumidityHTU21D.h"
 
+#define RATE_TIMER_INTERVAL 2
 #define BUFFER_SIZE 200
 
 RTIMUSettings::RTIMUSettings(const char *productType)
@@ -149,6 +156,43 @@ bool RTIMUSettings::discoverIMU(int& imuType, bool& busIsI2C, unsigned char& sla
                         return true;
                     }
                 }
+            } else if (result == LSM9DS1_ID) {
+                if (HALRead(LSM9DS1_MAG_ADDRESS0, LSM9DS1_MAG_WHO_AM_I, 1, &altResult, "")) {
+                    if (altResult == LSM9DS1_MAG_ID) {
+                        imuType = RTIMU_TYPE_LSM9DS1;
+                        slaveAddress = LSM9DS1_ADDRESS0;
+                        busIsI2C = true;
+                        HAL_INFO("Detected LSM9DS1 at standard/standard address\n");
+                        return true;
+                    }
+                }
+                if (HALRead(LSM9DS1_MAG_ADDRESS1, LSM9DS1_MAG_WHO_AM_I, 1, &altResult, "")) {
+                    if (altResult == LSM9DS1_MAG_ID) {
+                        imuType = RTIMU_TYPE_LSM9DS1;
+                        slaveAddress = LSM9DS1_ADDRESS0;
+                        busIsI2C = true;
+                        HAL_INFO("Detected LSM9DS1 at standard/option 1 address\n");
+                        return true;
+                    }
+                }
+                if (HALRead(LSM9DS1_MAG_ADDRESS2, LSM9DS1_MAG_WHO_AM_I, 1, &altResult, "")) {
+                    if (altResult == LSM9DS1_MAG_ID) {
+                        imuType = RTIMU_TYPE_LSM9DS1;
+                        slaveAddress = LSM9DS1_ADDRESS0;
+                        busIsI2C = true;
+                        HAL_INFO("Detected LSM9DS1 at standard/option 2 address\n");
+                        return true;
+                    }
+                }
+                if (HALRead(LSM9DS1_MAG_ADDRESS3, LSM9DS1_MAG_WHO_AM_I, 1, &altResult, "")) {
+                    if (altResult == LSM9DS1_MAG_ID) {
+                        imuType = RTIMU_TYPE_LSM9DS1;
+                        slaveAddress = LSM9DS1_ADDRESS0;
+                        busIsI2C = true;
+                        HAL_INFO("Detected LSM9DS1 at standard/option 3 address\n");
+                        return true;
+                    }
+                }
             }
         }
 
@@ -195,6 +239,43 @@ bool RTIMUSettings::discoverIMU(int& imuType, bool& busIsI2C, unsigned char& sla
                         slaveAddress = LSM9DS0_GYRO_ADDRESS1;
                         busIsI2C = true;
                         HAL_INFO("Detected LSM9DS0 at option/standard address\n");
+                        return true;
+                    }
+                }
+            } else if (result == LSM9DS1_ID) {
+                if (HALRead(LSM9DS1_MAG_ADDRESS0, LSM9DS1_MAG_WHO_AM_I, 1, &altResult, "")) {
+                    if (altResult == LSM9DS1_MAG_ID) {
+                        imuType = RTIMU_TYPE_LSM9DS1;
+                        slaveAddress = LSM9DS1_ADDRESS1;
+                        busIsI2C = true;
+                        HAL_INFO("Detected LSM9DS1 at option/standard address\n");
+                        return true;
+                    }
+                }
+                if (HALRead(LSM9DS1_MAG_ADDRESS1, LSM9DS1_MAG_WHO_AM_I, 1, &altResult, "")) {
+                    if (altResult == LSM9DS1_MAG_ID) {
+                        imuType = RTIMU_TYPE_LSM9DS1;
+                        slaveAddress = LSM9DS1_ADDRESS1;
+                        busIsI2C = true;
+                        HAL_INFO("Detected LSM9DS1 at option/option 1 address\n");
+                        return true;
+                    }
+                }
+                if (HALRead(LSM9DS1_MAG_ADDRESS2, LSM9DS1_MAG_WHO_AM_I, 1, &altResult, "")) {
+                    if (altResult == LSM9DS1_MAG_ID) {
+                        imuType = RTIMU_TYPE_LSM9DS1;
+                        slaveAddress = LSM9DS1_ADDRESS1;
+                        busIsI2C = true;
+                        HAL_INFO("Detected LSM9DS1 at option/option 2 address\n");
+                        return true;
+                    }
+                }
+                if (HALRead(LSM9DS1_MAG_ADDRESS3, LSM9DS1_MAG_WHO_AM_I, 1, &altResult, "")) {
+                    if (altResult == LSM9DS1_MAG_ID) {
+                        imuType = RTIMU_TYPE_LSM9DS1;
+                        slaveAddress = LSM9DS1_ADDRESS1;
+                        busIsI2C = true;
+                        HAL_INFO("Detected LSM9DS1 at option/option 3 address\n");
                         return true;
                     }
                 }
@@ -336,6 +417,35 @@ bool RTIMUSettings::discoverPressure(int& pressureType, unsigned char& pressureA
     return false;
 }
 
+bool RTIMUSettings::discoverHumidity(int& humidityType, unsigned char& humidityAddress)
+{
+    unsigned char result;
+
+    //  auto detect on current bus
+
+    if (HALOpen()) {
+
+        if (HALRead(HTS221_ADDRESS, HTS221_REG_ID, 1, &result, "")) {
+            if (result == HTS221_ID) {
+                humidityType = RTHUMIDITY_TYPE_HTS221;
+                humidityAddress = HTS221_ADDRESS;
+                HAL_INFO("Detected HTS221 at standard address\n");
+                return true;
+            }
+        }
+
+        if (HALRead(HTU21D_ADDRESS, HTU21D_READ_USER_REG, 1, &result, "")) {
+            humidityType = RTHUMIDITY_TYPE_HTU21D;
+            humidityAddress = HTU21D_ADDRESS;
+            HAL_INFO("Detected HTU21D at standard address\n");
+            return true;
+        }
+
+    }
+    HAL_ERROR("No humidity sensor detected\n");
+    return false;
+}
+
 void RTIMUSettings::setDefaults()
 {
     //  preset general defaults
@@ -348,9 +458,22 @@ void RTIMUSettings::setDefaults()
     m_SPISelect = IMU_CHIP_SELECT;
     m_SPISpeed = 500000;
     m_fusionType = RTFUSION_TYPE_RTQF;
+    m_fusionDebug = false;
     m_axisRotation = RTIMU_XNORTH_YEAST;
     m_pressureType = RTPRESSURE_TYPE_AUTODISCOVER;
     m_I2CPressureAddress = 0;
+    m_humidityType = RTHUMIDITY_TYPE_AUTODISCOVER;
+    m_I2CHumidityAddress = 0;
+    
+    m_senTemp_break  = 80.0;                       // within reasonable temp range
+    m_temperatureCalValid = false;
+    for (int i = 0; i < 9; i++) {
+	  m_c3[i] = 0.0;
+	  m_c2[i] = 0.0;
+	  m_c1[i] = 0.0;
+	  m_c0[i] = 0.0;
+    }
+
     m_compassCalValid = false;
     m_compassCalEllipsoidValid = false;
     for (int i = 0; i < 3; i++) {
@@ -362,9 +485,19 @@ void RTIMUSettings::setDefaults()
     m_compassCalEllipsoidCorr[1][1] = 1;
     m_compassCalEllipsoidCorr[2][2] = 1;
 
-    m_compassAdjDeclination = 0;
+    m_compassAdjDeclination = 0.0;
 
     m_accelCalValid = false;
+    m_accelCalEllipsoidValid = false;
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            m_accelCalEllipsoidCorr[i][j] = 0;
+        }
+    }
+    m_accelCalEllipsoidCorr[0][0] = 1;
+    m_accelCalEllipsoidCorr[1][1] = 1;
+    m_accelCalEllipsoidCorr[2][2] = 1;
+
     m_gyroBiasValid = false;
 
     //  MPU9150 defaults
@@ -437,6 +570,20 @@ void RTIMUSettings::setDefaults()
 
     m_LSM9DS0CompassSampleRate = LSM9DS0_COMPASS_SAMPLERATE_50;
     m_LSM9DS0CompassFsr = LSM9DS0_COMPASS_FSR_2;
+
+    //  LSM9DS1 defaults
+
+    m_LSM9DS1GyroSampleRate = LSM9DS1_GYRO_SAMPLERATE_119;
+    m_LSM9DS1GyroBW = LSM9DS1_GYRO_BANDWIDTH_1;
+    m_LSM9DS1GyroHpf = LSM9DS1_GYRO_HPF_4;
+    m_LSM9DS1GyroFsr = LSM9DS1_GYRO_FSR_500;
+
+    m_LSM9DS1AccelSampleRate = LSM9DS1_ACCEL_SAMPLERATE_119;
+    m_LSM9DS1AccelFsr = LSM9DS1_ACCEL_FSR_8;
+    m_LSM9DS1AccelLpf = LSM9DS1_ACCEL_LPF_50;
+
+    m_LSM9DS1CompassSampleRate = LSM9DS1_COMPASS_SAMPLERATE_20;
+    m_LSM9DS1CompassFsr = LSM9DS1_COMPASS_FSR_4;
 
     // BMX055 defaults
 
@@ -523,6 +670,8 @@ bool RTIMUSettings::loadSettings()
             m_imuType = atoi(val);
         } else if (strcmp(key, RTIMULIB_FUSION_TYPE) == 0) {
             m_fusionType = atoi(val);
+        } else if (strcmp(key, RTIMULIB_FUSION_DEBUG) == 0) {
+           m_fusionDebug = strcmp(val, "true") == 0;
         } else if (strcmp(key, RTIMULIB_BUS_IS_I2C) == 0) {
             m_busIsI2C = strcmp(val, "true") == 0;
         } else if (strcmp(key, RTIMULIB_I2C_BUS) == 0) {
@@ -541,8 +690,133 @@ bool RTIMUSettings::loadSettings()
             m_pressureType = atoi(val);
         } else if (strcmp(key, RTIMULIB_I2C_PRESSUREADDRESS) == 0) {
             m_I2CPressureAddress = atoi(val);
+        } else if (strcmp(key, RTIMULIB_HUMIDITY_TYPE) == 0) {
+            m_humidityType = atoi(val);
+        } else if (strcmp(key, RTIMULIB_I2C_HUMIDITYADDRESS) == 0) {
+            m_I2CHumidityAddress = atoi(val);
+        // temperature bias calibration
+		// c3 temp^3 + c2 temp^2 + c1 temp + c0
+		// for acc_x,y,z gyro_x,y,z comp_x,y,z
 
-        // compass calibration
+        } else if (strcmp(key, RTIMULIB_TEMP_BREAK ) == 0) {
+		    sscanf(val, "%f", &ftemp);
+            m_senTemp_break = ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_VALID) == 0) {
+            m_temperatureCalValid = strcmp(val, "true") == 0;
+
+		} else if (strcmp(key, RTIMULIB_TEMPCAL_C0_0) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c0[0]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C0_1) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c0[1]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C0_2) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c0[2]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C0_3) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c0[3]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C0_4) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c0[4]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C0_5) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c0[5]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C0_6) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c0[6]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C0_7) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c0[7]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C0_8) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c0[8]=ftemp;
+			
+		} else if (strcmp(key, RTIMULIB_TEMPCAL_C1_0) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c1[0]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C1_1) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c1[1]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C1_2) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c1[2]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C1_3) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c1[3]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C1_4) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c1[4]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C1_5) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c1[5]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C1_6) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c1[6]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C1_7) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c1[7]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C1_8) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c1[8]=ftemp;
+			
+		} else if (strcmp(key, RTIMULIB_TEMPCAL_C2_0) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c2[0]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C2_1) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c2[1]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C2_2) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c2[2]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C2_3) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c2[3]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C2_4) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c2[4]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C2_5) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c2[5]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C2_6) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c2[6]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C2_7) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c2[7]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C2_8) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c2[8]=ftemp;
+			
+		} else if (strcmp(key, RTIMULIB_TEMPCAL_C3_0) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c3[0]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C3_1) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c3[1]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C3_2) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c3[2]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C3_3) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c3[3]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C3_4) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c3[4]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C3_5) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c3[5]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C3_6) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c3[6]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C3_7) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c3[7]=ftemp;
+        } else if (strcmp(key, RTIMULIB_TEMPCAL_C3_8) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_c3[8]=ftemp;
+			
+        // compass calibration and adjustment
 
         } else if (strcmp(key, RTIMULIB_COMPASSCAL_VALID) == 0) {
             m_compassCalValid = strcmp(val, "true") == 0;
@@ -609,7 +883,7 @@ bool RTIMUSettings::loadSettings()
             sscanf(val, "%f", &ftemp);
             m_compassCalEllipsoidCorr[2][2] = ftemp;
 
-            // accel calibration
+        // accel calibration
 
         } else if (strcmp(key, RTIMULIB_ACCELCAL_VALID) == 0) {
             m_accelCalValid = strcmp(val, "true") == 0;
@@ -632,7 +906,47 @@ bool RTIMUSettings::loadSettings()
             sscanf(val, "%f", &ftemp);
             m_accelCalMax.setZ(ftemp);
 
-            // gyro bias
+        // accel ellipsoid calibration
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_ELLIPSOID_VALID) == 0) {
+             m_accelCalEllipsoidValid = strcmp(val, "true") == 0;
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_OFFSET_X) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidOffset.setX(ftemp);
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_OFFSET_Y) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidOffset.setY(ftemp);
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_OFFSET_Z) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidOffset.setZ(ftemp);
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_CORR11) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidCorr[0][0] = ftemp;
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_CORR12) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidCorr[0][1] = ftemp;
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_CORR13) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidCorr[0][2] = ftemp;
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_CORR21) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidCorr[1][0] = ftemp;
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_CORR22) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidCorr[1][1] = ftemp;
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_CORR23) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidCorr[1][2] = ftemp;
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_CORR31) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidCorr[2][0] = ftemp;
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_CORR32) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidCorr[2][1] = ftemp;
+        } else if (strcmp(key, RTIMULIB_ACCELCAL_CORR33) == 0) {
+            sscanf(val, "%f", &ftemp);
+            m_accelCalEllipsoidCorr[2][2] = ftemp;
+
+		// gyro bias
 
         } else if (strcmp(key, RTIMULIB_GYRO_BIAS_VALID) == 0) {
             m_gyroBiasValid = strcmp(val, "true") == 0;
@@ -754,6 +1068,27 @@ bool RTIMUSettings::loadSettings()
         } else if (strcmp(key, RTIMULIB_LSM9DS0_COMPASS_FSR) == 0) {
             m_LSM9DS0CompassFsr = atoi(val);
 
+        //  LSM9DS1 settings
+
+        } else if (strcmp(key, RTIMULIB_LSM9DS1_GYRO_SAMPLERATE) == 0) {
+            m_LSM9DS1GyroSampleRate = atoi(val);
+        } else if (strcmp(key, RTIMULIB_LSM9DS1_GYRO_FSR) == 0) {
+            m_LSM9DS1GyroFsr = atoi(val);
+        } else if (strcmp(key, RTIMULIB_LSM9DS1_GYRO_HPF) == 0) {
+            m_LSM9DS1GyroHpf = atoi(val);
+        } else if (strcmp(key, RTIMULIB_LSM9DS1_GYRO_BW) == 0) {
+            m_LSM9DS1GyroBW = atoi(val);
+        } else if (strcmp(key, RTIMULIB_LSM9DS1_ACCEL_SAMPLERATE) == 0) {
+            m_LSM9DS1AccelSampleRate = atoi(val);
+        } else if (strcmp(key, RTIMULIB_LSM9DS1_ACCEL_FSR) == 0) {
+            m_LSM9DS1AccelFsr = atoi(val);
+        } else if (strcmp(key, RTIMULIB_LSM9DS1_ACCEL_LPF) == 0) {
+            m_LSM9DS1AccelLpf = atoi(val);
+        } else if (strcmp(key, RTIMULIB_LSM9DS1_COMPASS_SAMPLERATE) == 0) {
+            m_LSM9DS1CompassSampleRate = atoi(val);
+        } else if (strcmp(key, RTIMULIB_LSM9DS1_COMPASS_FSR) == 0) {
+            m_LSM9DS1CompassFsr = atoi(val);
+
         //  BMX055 settings
 
         } else if (strcmp(key, RTIMULIB_BMX055_GYRO_SAMPLERATE) == 0) {
@@ -781,6 +1116,7 @@ bool RTIMUSettings::loadSettings()
 bool RTIMUSettings::saveSettings()
 {
     if (!m_usingSD) {
+        // UP TO 2048 bytes, 512 floats
         RTIMULIB_CAL_DATA calData;
 
         calData.magValid = m_compassCalValid;
@@ -819,8 +1155,11 @@ bool RTIMUSettings::saveSettings()
     setComment("  3 = STM L3GD20H + LSM303D");
     setComment("  4 = STM L3GD20 + LSM303DLHC");
     setComment("  5 = STM LSM9DS0");
-    setComment("  6 = InvenSense MPU-9250");
-    setComment("  7 = STM L3GD20H + LSM303DLHC");
+    setComment("  6 = STM LSM9DS1");
+    setComment("  7 = InvenSense MPU-9250");
+    setComment("  8 = STM L3GD20H + LSM303DLHC");
+    setComment("  9 = Bosch BMX055");
+    setComment("  10 = Bosch BNX055");
     setValue(RTIMULIB_IMU_TYPE, m_imuType);
 
     setBlank();
@@ -829,8 +1168,14 @@ bool RTIMUSettings::saveSettings()
     setComment("  0 - Null. Use if only sensor data required without fusion");
     setComment("  1 - Kalman STATE4");
     setComment("  2 - RTQF");
+    setComment("  3 - AHRS");
     setValue(RTIMULIB_FUSION_TYPE, m_fusionType);
 
+    setBlank();
+    setComment("");
+    setComment("Fusion Debug - ");
+    setValue(RTIMULIB_FUSION_DEBUG, m_fusionDebug);
+    
     setBlank();
     setComment("");
     setComment("Is bus I2C: 'true' for I2C, 'false' for SPI");
@@ -863,7 +1208,32 @@ bool RTIMUSettings::saveSettings()
 
     setBlank();
     setComment("");
-    setComment("IMU axis rotation - see RTIMU.h for details");
+    setComment("IMU axis rotation - CHANING THIS WILL REQUIRE RECALIBRATION");
+	setComment("XNORTH_YEAST              0 // this is the default identity matrix");                
+	setComment("XEAST_YSOUTH              1");
+	setComment("XSOUTH_YWEST              2");
+	setComment("XWEST_YNORTH              3");
+	setComment("XNORTH_YWEST              4");
+	setComment("XEAST_YNORTH              5");
+	setComment("XSOUTH_YEAST              6");
+	setComment("XWEST_YSOUTH              7");
+	setComment("XUP_YNORTH                8");
+	setComment("XUP_YEAST                 9");
+	setComment("XUP_YSOUTH                10");
+	setComment("XUP_YWEST                 11");
+	setComment("XDOWN_YNORTH              12");
+	setComment("XDOWN_YEAST               13");
+	setComment("XDOWN_YSOUTH              14");
+	setComment("XDOWN_YWEST               15");
+	setComment("XNORTH_YUP                16");
+	setComment("XEAST_YUP                 17");
+	setComment("XSOUTH_YUP                18");
+	setComment("XWEST_YUP                 19");
+	setComment("XNORTH_YDOWN              20");
+	setComment("XEAST_YDOWN               21");
+	setComment("XSOUTH_YDOWN              22");
+	setComment("XWEST_YDOWN               23");
+
     setValue(RTIMULIB_AXIS_ROTATION, m_axisRotation);
 
     setBlank();
@@ -874,6 +1244,7 @@ bool RTIMUSettings::saveSettings()
     setComment("  3 = LPS25H");
     setComment("  4 = MS5611");
     setComment("  5 = MS5637");
+    setComment("  6 = MS5803");
 
     setValue(RTIMULIB_PRESSURE_TYPE, m_pressureType);
 
@@ -882,7 +1253,75 @@ bool RTIMUSettings::saveSettings()
     setComment("I2C pressure sensor address (filled in automatically by auto discover) ");
     setValue(RTIMULIB_I2C_PRESSUREADDRESS, m_I2CPressureAddress);
 
-   //  Compass calibration settings
+    setBlank();
+    setComment("Humidity sensor type - ");
+    setComment("  0 = Auto discover");
+    setComment("  1 = Null (no hardware or don't use)");
+    setComment("  2 = HTS221");
+    setComment("  3 = HTU21D");
+
+    setValue(RTIMULIB_HUMIDITY_TYPE, m_humidityType);
+
+    setBlank();
+    setComment("");
+    setComment("I2C humidity sensor address (filled in automatically by auto discover) ");
+    setValue(RTIMULIB_I2C_HUMIDITYADDRESS, m_I2CHumidityAddress);
+
+//  Temperature bias settings
+
+    setBlank();
+    setComment("#####################################################################");
+    setComment("");
+
+    setBlank();
+    setComment("Max Temperature Allowed for Bias Correction ");
+    setValue(RTIMULIB_TEMP_BREAK, m_senTemp_break);
+
+    setBlank();
+    setComment("Temperature bias calibration settings");
+    setValue(RTIMULIB_TEMPCAL_VALID, m_temperatureCalValid);
+	
+    setValue(RTIMULIB_TEMPCAL_C0_0, m_c0[0]);
+    setValue(RTIMULIB_TEMPCAL_C0_1, m_c0[1]);
+    setValue(RTIMULIB_TEMPCAL_C0_2, m_c0[2]);
+    setValue(RTIMULIB_TEMPCAL_C0_3, m_c0[3]);
+    setValue(RTIMULIB_TEMPCAL_C0_4, m_c0[4]);
+    setValue(RTIMULIB_TEMPCAL_C0_5, m_c0[5]);
+    setValue(RTIMULIB_TEMPCAL_C0_6, m_c0[6]);
+    setValue(RTIMULIB_TEMPCAL_C0_7, m_c0[7]);
+    setValue(RTIMULIB_TEMPCAL_C0_8, m_c0[8]);
+
+    setValue(RTIMULIB_TEMPCAL_C1_0, m_c1[0]);
+    setValue(RTIMULIB_TEMPCAL_C1_1, m_c1[1]);
+    setValue(RTIMULIB_TEMPCAL_C1_2, m_c1[2]);
+    setValue(RTIMULIB_TEMPCAL_C1_3, m_c1[3]);
+    setValue(RTIMULIB_TEMPCAL_C1_4, m_c1[4]);
+    setValue(RTIMULIB_TEMPCAL_C1_5, m_c1[5]);
+    setValue(RTIMULIB_TEMPCAL_C1_6, m_c1[6]);
+    setValue(RTIMULIB_TEMPCAL_C1_7, m_c1[7]);
+    setValue(RTIMULIB_TEMPCAL_C1_8, m_c1[8]);
+
+    setValue(RTIMULIB_TEMPCAL_C2_0, m_c2[0]);
+    setValue(RTIMULIB_TEMPCAL_C2_1, m_c2[1]);
+    setValue(RTIMULIB_TEMPCAL_C2_2, m_c2[2]);
+    setValue(RTIMULIB_TEMPCAL_C2_3, m_c2[3]);
+    setValue(RTIMULIB_TEMPCAL_C2_4, m_c2[4]);
+    setValue(RTIMULIB_TEMPCAL_C2_5, m_c2[5]);
+    setValue(RTIMULIB_TEMPCAL_C2_6, m_c2[6]);
+    setValue(RTIMULIB_TEMPCAL_C2_7, m_c2[7]);
+    setValue(RTIMULIB_TEMPCAL_C2_8, m_c2[8]);
+
+    setValue(RTIMULIB_TEMPCAL_C3_0, m_c3[0]);
+    setValue(RTIMULIB_TEMPCAL_C3_1, m_c3[1]);
+    setValue(RTIMULIB_TEMPCAL_C3_2, m_c3[2]);
+    setValue(RTIMULIB_TEMPCAL_C3_3, m_c3[3]);
+    setValue(RTIMULIB_TEMPCAL_C3_4, m_c3[4]);
+    setValue(RTIMULIB_TEMPCAL_C3_5, m_c3[5]);
+    setValue(RTIMULIB_TEMPCAL_C3_6, m_c3[6]);
+    setValue(RTIMULIB_TEMPCAL_C3_7, m_c3[7]);
+    setValue(RTIMULIB_TEMPCAL_C3_8, m_c3[8]);
+
+    //  Compass settings
 
     setBlank();
     setComment("#####################################################################");
@@ -945,6 +1384,28 @@ bool RTIMUSettings::saveSettings()
     setValue(RTIMULIB_ACCELCAL_MAXY, m_accelCalMax.y());
     setValue(RTIMULIB_ACCELCAL_MAXZ, m_accelCalMax.z());
 
+    //  Accel ellipsoid calibration settings
+
+    setBlank();
+    setComment("#####################################################################");
+    setComment("");
+
+    setBlank();
+    setComment("Accelerometer ellipsoid calibration");
+    setValue(RTIMULIB_ACCELCAL_ELLIPSOID_VALID, m_accelCalEllipsoidValid);
+    setValue(RTIMULIB_ACCELCAL_OFFSET_X, m_accelCalEllipsoidOffset.x());
+    setValue(RTIMULIB_ACCELCAL_OFFSET_Y, m_accelCalEllipsoidOffset.y());
+    setValue(RTIMULIB_ACCELCAL_OFFSET_Z, m_accelCalEllipsoidOffset.z());
+    setValue(RTIMULIB_ACCELCAL_CORR11, m_accelCalEllipsoidCorr[0][0]);
+    setValue(RTIMULIB_ACCELCAL_CORR12, m_accelCalEllipsoidCorr[0][1]);
+    setValue(RTIMULIB_ACCELCAL_CORR13, m_accelCalEllipsoidCorr[0][2]);
+    setValue(RTIMULIB_ACCELCAL_CORR21, m_accelCalEllipsoidCorr[1][0]);
+    setValue(RTIMULIB_ACCELCAL_CORR22, m_accelCalEllipsoidCorr[1][1]);
+    setValue(RTIMULIB_ACCELCAL_CORR23, m_accelCalEllipsoidCorr[1][2]);
+    setValue(RTIMULIB_ACCELCAL_CORR31, m_accelCalEllipsoidCorr[2][0]);
+    setValue(RTIMULIB_ACCELCAL_CORR32, m_accelCalEllipsoidCorr[2][1]);
+    setValue(RTIMULIB_ACCELCAL_CORR33, m_accelCalEllipsoidCorr[2][2]);
+
     //  Gyro bias settings
 
     setBlank();
@@ -990,10 +1451,10 @@ bool RTIMUSettings::saveSettings()
     setBlank();
     setComment("");
     setComment("Gyro full scale range - ");
-    setComment("  0  - +/- 250 degress per second");
-    setComment("  8  - +/- 500 degress per second");
-    setComment("  16 - +/- 1000 degress per second");
-    setComment("  24 - +/- 2000 degress per second");
+    setComment("  0  - +/- 250 degrees per second");
+    setComment("  8  - +/- 500 degrees per second");
+    setComment("  16 - +/- 1000 degrees per second");
+    setComment("  24 - +/- 2000 degrees per second");
     setValue(RTIMULIB_MPU9150_GYRO_FSR, m_MPU9150GyroFsr);
 
     setBlank();
@@ -1415,6 +1876,92 @@ bool RTIMUSettings::saveSettings()
     setComment("  2 = +/- 800 uT ");
     setComment("  3 = +/- 1200 uT ");
     setValue(RTIMULIB_LSM9DS0_COMPASS_FSR, m_LSM9DS0CompassFsr);
+
+//  LSM9DS1 settings
+
+    setBlank();
+    setComment("#####################################################################");
+    setComment("");
+    setComment("LSM9DS1 settings");
+    setComment("");
+
+    setBlank();
+    setComment("Gyro sample rate - ");
+    setComment("  0 = 95Hz ");
+    setComment("  1 = 190Hz ");
+    setComment("  2 = 380Hz ");
+    setComment("  3 = 760Hz ");
+    setValue(RTIMULIB_LSM9DS1_GYRO_SAMPLERATE, m_LSM9DS1GyroSampleRate);
+
+    setBlank();
+    setComment("");
+    setComment("Gyro full scale range - ");
+    setComment("  0 = 250 degrees per second ");
+    setComment("  1 = 500 degrees per second ");
+    setComment("  2 = 2000 degrees per second ");
+    setValue(RTIMULIB_LSM9DS1_GYRO_FSR, m_LSM9DS1GyroFsr);
+
+    setBlank();
+    setComment("");
+    setComment("Gyro high pass filter - ");
+    setComment("  0 - 9 but see the LSM9DS1 manual for details");
+    setValue(RTIMULIB_LSM9DS1_GYRO_HPF, m_LSM9DS1GyroHpf);
+
+    setBlank();
+    setComment("");
+    setComment("Gyro bandwidth - ");
+    setComment("  0 - 3 but see the LSM9DS1 manual for details");
+    setValue(RTIMULIB_LSM9DS1_GYRO_BW, m_LSM9DS1GyroBW);
+
+    setBlank();
+    setComment("Accel sample rate - ");
+    setComment("  1 = 14.9Hz ");
+    setComment("  2 = 59.5Hz ");
+    setComment("  3 = 119Hz ");
+    setComment("  4 = 238Hz ");
+    setComment("  5 = 476Hz ");
+    setComment("  6 = 952Hz ");
+    setValue(RTIMULIB_LSM9DS1_ACCEL_SAMPLERATE, m_LSM9DS1AccelSampleRate);
+
+    setBlank();
+    setComment("");
+    setComment("Accel full scale range - ");
+    setComment("  0 = +/- 2g ");
+    setComment("  1 = +/- 16g ");
+    setComment("  2 = +/- 4g ");
+    setComment("  3 = +/- 8g ");
+    setValue(RTIMULIB_LSM9DS1_ACCEL_FSR, m_LSM9DS1AccelFsr);
+
+    setBlank();
+    setComment("");
+    setComment("Accel low pass filter - ");
+    setComment("  0 = 408Hz");
+    setComment("  1 = 211Hz");
+    setComment("  2 = 105Hz");
+    setComment("  3 = 50Hz");
+    setValue(RTIMULIB_LSM9DS1_ACCEL_LPF, m_LSM9DS1AccelLpf);
+
+    setBlank();
+    setComment("");
+    setComment("Compass sample rate - ");
+    setComment("  0 = 0.625Hz ");
+    setComment("  1 = 1.25Hz ");
+    setComment("  2 = 2.5Hz ");
+    setComment("  3 = 5Hz ");
+    setComment("  4 = 10Hz ");
+    setComment("  5 = 20Hz ");
+    setComment("  6 = 40Hz ");
+    setComment("  7 = 80Hz ");
+    setValue(RTIMULIB_LSM9DS1_COMPASS_SAMPLERATE, m_LSM9DS1CompassSampleRate);
+
+    setBlank();
+    setComment("");
+    setComment("Compass full scale range - ");
+    setComment("  0 = +/- 400 uT ");
+    setComment("  1 = +/- 800 uT ");
+    setComment("  2 = +/- 1200 uT ");
+    setComment("  3 = +/- 1600 uT ");
+    setValue(RTIMULIB_LSM9DS1_COMPASS_FSR, m_LSM9DS1CompassFsr);
 
     //  BMX055 settings
 

@@ -55,6 +55,7 @@ typedef struct
 
 #define RTIMULIB_IMU_TYPE                   "IMUType"
 #define RTIMULIB_FUSION_TYPE                "FusionType"
+#define RTIMULIB_FUSION_DEBUG               "FusionDebug"
 #define RTIMULIB_BUS_IS_I2C                 "BusIsI2C"
 #define RTIMULIB_I2C_SLAVEADDRESS           "I2CSlaveAddress"
 #define RTIMULIB_I2C_BUS                    "I2CBus"
@@ -64,6 +65,8 @@ typedef struct
 #define RTIMULIB_AXIS_ROTATION              "AxisRotation"
 #define RTIMULIB_PRESSURE_TYPE              "PressureType"
 #define RTIMULIB_I2C_PRESSUREADDRESS        "I2CPressureAddress"
+#define RTIMULIB_HUMIDITY_TYPE              "HumidityType"
+#define RTIMULIB_I2C_HUMIDITYADDRESS        "I2CHumidityAddress"
 
 //  MPU9150 settings keys
 
@@ -138,6 +141,20 @@ typedef struct
 #define RTIMULIB_LSM9DS0_COMPASS_SAMPLERATE "LSM9DS0CompassSampleRate"
 #define RTIMULIB_LSM9DS0_COMPASS_FSR       "LSM9DS0CompassFsr"
 
+//  LSM9DS1 settings keys
+
+#define RTIMULIB_LSM9DS1_GYRO_SAMPLERATE   "LSM9DS1GyroSampleRate"
+#define RTIMULIB_LSM9DS1_GYRO_BW           "LSM9DS1GyroBW"
+#define RTIMULIB_LSM9DS1_GYRO_HPF          "LSM9DS1GyroHpf"
+#define RTIMULIB_LSM9DS1_GYRO_FSR          "LSM9DS1GyroFsr"
+
+#define RTIMULIB_LSM9DS1_ACCEL_SAMPLERATE  "LSM9DS1AccelSampleRate"
+#define RTIMULIB_LSM9DS1_ACCEL_FSR         "LSM9DS1AccelFsr"
+#define RTIMULIB_LSM9DS1_ACCEL_LPF         "LSM9DS1AccelLpf"
+
+#define RTIMULIB_LSM9DS1_COMPASS_SAMPLERATE "LSM9DS1CompassSampleRate"
+#define RTIMULIB_LSM9DS1_COMPASS_FSR       "LSM9DS1CompassFsr"
+
 //  BMX055 settings keys
 
 #define RTIMULIB_BMX055_GYRO_SAMPLERATE     "BMX055GyroSampleRate"
@@ -148,6 +165,49 @@ typedef struct
 
 #define RTIMULIB_BMX055_MAG_PRESET          "BMX055MagPreset"
 
+// Temperatur Bias
+#define RTIMULIB_TEMP_BREAK                 "senTemp_break"
+#define RTIMULIB_TEMPCAL_VALID              "TemperatureCalValid"
+#define RTIMULIB_TEMPCAL_C3_0               "c3_0"
+#define RTIMULIB_TEMPCAL_C3_1               "c3_1"
+#define RTIMULIB_TEMPCAL_C3_2               "c3_2"
+#define RTIMULIB_TEMPCAL_C3_3               "c3_3"
+#define RTIMULIB_TEMPCAL_C3_4               "c3_4"
+#define RTIMULIB_TEMPCAL_C3_5               "c3_5"
+#define RTIMULIB_TEMPCAL_C3_6               "c3_6"
+#define RTIMULIB_TEMPCAL_C3_7               "c3_7"
+#define RTIMULIB_TEMPCAL_C3_8               "c3_8"
+
+#define RTIMULIB_TEMPCAL_C2_0               "c2_0"
+#define RTIMULIB_TEMPCAL_C2_1               "c2_1"
+#define RTIMULIB_TEMPCAL_C2_2               "c2_2"
+#define RTIMULIB_TEMPCAL_C2_3               "c2_3"
+#define RTIMULIB_TEMPCAL_C2_4               "c2_4"
+#define RTIMULIB_TEMPCAL_C2_5               "c2_5"
+#define RTIMULIB_TEMPCAL_C2_6               "c2_6"
+#define RTIMULIB_TEMPCAL_C2_7               "c2_7"
+#define RTIMULIB_TEMPCAL_C2_8               "c2_8"
+
+#define RTIMULIB_TEMPCAL_C1_0               "c1_0"
+#define RTIMULIB_TEMPCAL_C1_1               "c1_1"
+#define RTIMULIB_TEMPCAL_C1_2               "c1_2"
+#define RTIMULIB_TEMPCAL_C1_3               "c1_3"
+#define RTIMULIB_TEMPCAL_C1_4               "c1_4"
+#define RTIMULIB_TEMPCAL_C1_5               "c1_5"
+#define RTIMULIB_TEMPCAL_C1_6               "c1_6"
+#define RTIMULIB_TEMPCAL_C1_7               "c1_7"
+#define RTIMULIB_TEMPCAL_C1_8               "c1_8"
+
+#define RTIMULIB_TEMPCAL_C0_0               "c0_0"
+#define RTIMULIB_TEMPCAL_C0_1               "c0_1"
+#define RTIMULIB_TEMPCAL_C0_2               "c0_2"
+#define RTIMULIB_TEMPCAL_C0_3               "c0_3"
+#define RTIMULIB_TEMPCAL_C0_4               "c0_4"
+#define RTIMULIB_TEMPCAL_C0_5               "c0_5"
+#define RTIMULIB_TEMPCAL_C0_6               "c0_6"
+#define RTIMULIB_TEMPCAL_C0_7               "c0_7"
+#define RTIMULIB_TEMPCAL_C0_8               "c0_8"
+
 //  Gyro bias keys
 
 #define RTIMULIB_GYRO_BIAS_VALID            "GyroBiasValid"
@@ -155,7 +215,7 @@ typedef struct
 #define RTIMULIB_GYRO_BIAS_Y                "GyroBiasY"
 #define RTIMULIB_GYRO_BIAS_Z                "GyroBiasZ"
 
-//  Compass calibration settings keys
+//  Compass calibration and adjustment settings keys
 
 #define RTIMULIB_COMPASSCAL_VALID           "CompassCalValid"
 #define RTIMULIB_COMPASSCAL_MINX            "CompassCalMinX"
@@ -192,9 +252,26 @@ typedef struct
 #define RTIMULIB_ACCELCAL_MAXZ              "AccelCalMaxZ"
 
 
+#define RTIMULIB_ACCELCAL_ELLIPSOID_VALID "accelCalEllipsoidValid"
+#define RTIMULIB_ACCELCAL_OFFSET_X        "accelCalOffsetX"
+#define RTIMULIB_ACCELCAL_OFFSET_Y        "accelCalOffsetY"
+#define RTIMULIB_ACCELCAL_OFFSET_Z        "accelCalOffsetZ"
+#define RTIMULIB_ACCELCAL_CORR11          "accelCalCorr11"
+#define RTIMULIB_ACCELCAL_CORR12          "accelCalCorr12"
+#define RTIMULIB_ACCELCAL_CORR13          "accelCalCorr13"
+#define RTIMULIB_ACCELCAL_CORR21          "accelCalCorr21"
+#define RTIMULIB_ACCELCAL_CORR22          "accelCalCorr22"
+#define RTIMULIB_ACCELCAL_CORR23          "accelCalCorr23"
+#define RTIMULIB_ACCELCAL_CORR31          "accelCalCorr31"
+#define RTIMULIB_ACCELCAL_CORR32          "accelCalCorr32"
+#define RTIMULIB_ACCELCAL_CORR33          "accelCalCorr33"
+
 class RTIMUSettings : public RTIMUHal
 {
 public:
+
+    //  Standard constructor sets up for ini file in working directory
+
     RTIMUSettings(const char *productType = "RTIMULib");
 
     //  This function tries to find an IMU. It stops at the first valid one
@@ -206,6 +283,11 @@ public:
     //  and returns true or else false
 
     bool discoverPressure(int& pressureType, unsigned char& pressureAddress);
+
+    //  This function tries to find a humidity sensor. It stops at the first valid one
+    //  and returns true or else false
+
+    bool discoverHumidity(int& humidityType, unsigned char& humidityAddress);
 
     //  This function sets the settings to default values.
 
@@ -223,11 +305,22 @@ public:
 
     int m_imuType;                                          // type code of imu in use
     int m_fusionType;                                       // fusion algorithm type code
+    bool m_fusionDebug;                                     // fusion debugging enable/disable
     unsigned char m_I2CSlaveAddress;                        // I2C slave address of the imu
     int m_axisRotation;                                     // axis rotation code
     int m_pressureType;                                     // type code of pressure sensor in use
     unsigned char m_I2CPressureAddress;                     // I2C slave address of the pressure sensor
+    int m_humidityType;                                     // type code of humidity sensor in use
+    unsigned char m_I2CHumidityAddress;                     // I2C slave address of the humidity sensor
 
+    bool  m_temperatureCalValid;                            // true if there is valid temperature bias correction data
+    float m_c3[9];                                          // Temperature Bias:
+    float m_c2[9];                                          // c3 * T^3 + c2 * T^2 + c1 * T + c0
+    float m_c1[9];                                          // for acc, gyro and mag
+    float m_c0[9];                                          //   a total of 9 elements
+    float m_senTemp_break;                                  // within reasonable temp range
+    float m_temperaturebias[9];                                    // Sensor bias as function of temp
+  
     bool m_compassCalValid;                                 // true if there is valid compass calibration data
     RTVector3 m_compassCalMin;                              // the minimum values
     RTVector3 m_compassCalMax;                              // the maximum values
@@ -242,6 +335,10 @@ public:
     RTVector3 m_accelCalMin;                                // the minimum values
     RTVector3 m_accelCalMax;                                // the maximum values
 
+    bool m_accelCalEllipsoidValid;                          // true if the ellipsoid calibration data is valid
+    RTVector3 m_accelCalEllipsoidOffset;                    // the ellipsoid offset
+    float m_accelCalEllipsoidCorr[3][3];                    // the correction matrix
+
     bool m_gyroBiasValid;                                   // true if the recorded gyro bias is valid
     RTVector3 m_gyroBias;                                   // the recorded gyro bias
 
@@ -252,8 +349,8 @@ public:
     int m_MPU9150GyroAccelSampleRate;                       // the sample rate (samples per second) for gyro and accel
     int m_MPU9150CompassSampleRate;                         // same for the compass
     int m_MPU9150GyroAccelLpf;                              // low pass filter code for the gyro and accel
-    int m_MPU9150GyroFsr;                                   // FSR code for the gyro
-    int m_MPU9150AccelFsr;                                  // FSR code for the accel
+    int m_MPU9150GyroFsr;                                   // FSR code for the gyro (scale))
+    int m_MPU9150AccelFsr;                                  // FSR code for the accel (scale)
 
     //  MPU9250
 
@@ -317,6 +414,20 @@ public:
 
     int m_LSM9DS0CompassSampleRate;                         // the compass sample rate
     int m_LSM9DS0CompassFsr;                                // the compass full scale range
+
+    //  LSM9DS1
+
+    int m_LSM9DS1GyroSampleRate;                            // the gyro sample rate
+    int m_LSM9DS1GyroBW;                                    // the gyro bandwidth code
+    int m_LSM9DS1GyroHpf;                                   // the gyro high pass filter cutoff code
+    int m_LSM9DS1GyroFsr;                                   // the gyro full scale range
+
+    int m_LSM9DS1AccelSampleRate;                           // the accel sample rate
+    int m_LSM9DS1AccelFsr;                                  // the accel full scale range
+    int m_LSM9DS1AccelLpf;                                  // the accel low pass filter
+
+    int m_LSM9DS1CompassSampleRate;                         // the compass sample rate
+    int m_LSM9DS1CompassFsr;                                // the compass full scale range
 
     //  BMX055
 

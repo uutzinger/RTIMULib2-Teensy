@@ -32,17 +32,26 @@
 #include "RTFusion.h"
 #include "RTFusionRTQF.h"
 #include "RTFusionKalman4.h"
+#include "RTFusionAHRS.h"
 
 #include "RTIMUHal.h"
 #include "utility/RTIMU.h"
 #include "utility/RTIMUNull.h"
 #include "utility/RTIMUMPU9150.h"
+#include "utility/RTIMUMPU9250.h"
 #include "utility/RTIMUGD20HM303D.h"
 #include "utility/RTIMUGD20M303DLHC.h"
 #include "utility/RTIMULSM9DS0.h"
 
 #include "utility/RTPressure.h"
 #include "utility/RTPressureBMP180.h"
+#include "utility/RTPressureLPS25H.h"
+#include "utility/RTPressureMS5611.h"
+#include "utility/RTPressureMS5803.h"
+
+#include "utility/RTHumidity.h"
+#include "utility/RTHumidityHTS221.h"
+#include "utility/RTHumidityHTU21D.h"
 
 #include "RTIMUSettings.h"
 

@@ -21,11 +21,15 @@
 //  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// UU: This code was changed to
+// provide temperature compensation to IMU sensor data
+// update: recomputes to temperature offsets
+// handle: applies to offsets to raw data
 
 #include "RTIMU.h"
 #include "RTFusionKalman4.h"
 #include "RTFusionRTQF.h"
-
+#include "RTFusionAHRS.h"
 #include "RTIMUNull.h"
 #include "RTIMUMPU9150.h"
 #include "RTIMUMPU9250.h"
@@ -33,12 +37,16 @@
 #include "RTIMUGD20M303DLHC.h"
 #include "RTIMUGD20HM303DLHC.h"
 #include "RTIMULSM9DS0.h"
+#include "RTIMULSM9DS1.h"
 #include "RTIMUBMX055.h"
 #include "RTIMUBNO055.h"
 
-//  this sets the learning rate for compass running average calculation
+//  this sets the learning rate for compass and accelerometer running average calculation
 
 #define COMPASS_ALPHA 0.2f
+
+// this sets the learning rate for the acceleration length to become 1 g during nomotion
+#define ACCEL_ALPHA 0.01f
 
 //  this sets the min range (max - min) of values to trigger runtime mag calibration
 
@@ -100,6 +108,9 @@ RTIMU *RTIMU::createIMU(RTIMUSettings *settings)
 
     case RTIMU_TYPE_LSM9DS0:
         return new RTIMULSM9DS0(settings);
+		
+    case RTIMU_TYPE_LSM9DS1:
+        return new RTIMULSM9DS1(settings);
 
     case RTIMU_TYPE_MPU9250:
         return new RTIMUMPU9250(settings);
@@ -137,11 +148,13 @@ RTIMU::RTIMU(RTIMUSettings *settings)
     m_accelCalibrationMode = false;
 
     m_runtimeMagCalValid = false;
-
+	
     for (int i = 0; i < 3; i++) {
         m_runtimeMagCalMax[i] = -1000;
         m_runtimeMagCalMin[i] = 1000;
     }
+    m_gyroCalibrationMode = false;
+    m_temperatureCalibrationMode = false;
 
     switch (m_settings->m_fusionType) {
     case RTFUSION_TYPE_KALMANSTATE4:
@@ -152,6 +165,10 @@ RTIMU::RTIMU(RTIMUSettings *settings)
         m_fusion = new RTFusionRTQF();
         break;
 
+    case RTFUSION_TYPE_AHRS:
+        m_fusion = new RTFusionAHRS();
+        break;
+        
     default:
         m_fusion = new RTFusion();
         break;
@@ -190,6 +207,12 @@ void RTIMU::setCalibrationData()
         }
     }
 
+    if (m_settings->m_temperatureCalValid) {
+        HAL_INFO("Using temperature bias calibration\n");
+    } else {
+        HAL_INFO("Temperature bias calibration not in use\n");
+    }
+
     if (m_settings->m_compassCalValid) {
         HAL_INFO("Using min/max compass calibration\n");
     } else {
@@ -206,6 +229,45 @@ void RTIMU::setCalibrationData()
         HAL_INFO("Using accel calibration\n");
     } else {
         HAL_INFO("Accel calibration not in use\n");
+    }
+
+    if (m_settings->m_accelCalEllipsoidValid) {
+        HAL_INFO("Using ellipsoid accelerometer calibration\n");
+    } else {
+        HAL_INFO("Ellipsoid accelerometer calibration not in use\n");
+    }
+}
+
+void RTIMU::updateTempBias(float senTemp)
+{
+    if(m_settings->m_temperatureCalValid == true) {
+	if(senTemp < m_settings->m_senTemp_break) {
+            for(int i = 0; i < 9; i++) { 
+                m_settings->m_temperaturebias[i] = m_settings->m_c3[i]*(senTemp*senTemp*senTemp) + m_settings->m_c2[i]*(senTemp*senTemp) + m_settings->m_c1[i]*senTemp + m_settings->m_c0[i];
+            }		
+	} else {
+            for(int i = 0; i < 9; i++) { 
+                m_settings->m_temperaturebias[i] = 0.0f;
+            }
+	}
+    }
+}
+
+void RTIMU::handleTempBias()
+{
+    if(getTemperatureCalibrationValid()) {
+        // Accelerometer
+        m_imuData.accel.setX(m_imuData.accel.x() - m_settings->m_temperaturebias[0]);
+        m_imuData.accel.setY(m_imuData.accel.y() - m_settings->m_temperaturebias[1]);
+        m_imuData.accel.setZ(m_imuData.accel.z() - m_settings->m_temperaturebias[2]);
+        // Gyroscope
+        m_imuData.gyro.setX(m_imuData.gyro.x() - m_settings->m_temperaturebias[3]);
+        m_imuData.gyro.setY(m_imuData.gyro.y() - m_settings->m_temperaturebias[4]);
+        m_imuData.gyro.setZ(m_imuData.gyro.z() - m_settings->m_temperaturebias[5]);
+        // Compass
+        m_imuData.compass.setX(m_imuData.compass.x() - m_settings->m_temperaturebias[6]);
+        m_imuData.compass.setY(m_imuData.compass.y() - m_settings->m_temperaturebias[7]);
+        m_imuData.compass.setZ(m_imuData.compass.z() - m_settings->m_temperaturebias[8]);
     }
 }
 
@@ -287,10 +349,13 @@ void RTIMU::handleGyroBias()
     RTVector3 deltaAccel = m_previousAccel;
     deltaAccel -= m_imuData.accel;   // compute difference
     m_previousAccel = m_imuData.accel;
+    //printf("Delta Accel: %f, Gyration: %f\n", deltaAccel.length(), m_imuData.gyro.length());
 
     if ((deltaAccel.length() < RTIMU_FUZZY_ACCEL_ZERO) && (m_imuData.gyro.length() < RTIMU_FUZZY_GYRO_ZERO)) {
         // what we are seeing on the gyros should be bias only so learn from this
-
+		
+		m_imuData.motion = false;
+		
         if (m_gyroSampleCount < (5 * m_sampleRate)) {
             m_settings->m_gyroBias.setX((1.0 - m_gyroLearningAlpha) * m_settings->m_gyroBias.x() + m_gyroLearningAlpha * m_imuData.gyro.x());
             m_settings->m_gyroBias.setY((1.0 - m_gyroLearningAlpha) * m_settings->m_gyroBias.y() + m_gyroLearningAlpha * m_imuData.gyro.y());
@@ -308,9 +373,15 @@ void RTIMU::handleGyroBias()
             m_settings->m_gyroBias.setY((1.0 - m_gyroContinuousAlpha) * m_settings->m_gyroBias.y() + m_gyroContinuousAlpha * m_imuData.gyro.y());
             m_settings->m_gyroBias.setZ((1.0 - m_gyroContinuousAlpha) * m_settings->m_gyroBias.z() + m_gyroContinuousAlpha * m_imuData.gyro.z());
         }
-    }
+    } else {
+		m_imuData.motion = true;
+	}
 
-    m_imuData.gyro -= m_settings->m_gyroBias;
+	// Apply Gyro Bias
+	if (getGyroCalibrationValid()) {
+		m_imuData.gyro -= m_settings->m_gyroBias;
+	}
+
 }
 
 void RTIMU::calibrateAverageCompass()
@@ -394,8 +465,9 @@ void RTIMU::calibrateAverageCompass()
             }
         }
     }
+    //  calibrate if required
 
-    if (getCompassCalibrationValid() || getRuntimeCompassCalibrationValid()) {
+  if (getCompassCalibrationValid() || getRuntimeCompassCalibrationValid()) {
         m_imuData.compass.setX((m_imuData.compass.x() - m_compassCalOffset[0]) * m_compassCalScale[0]);
         m_imuData.compass.setY((m_imuData.compass.y() - m_compassCalOffset[1]) * m_compassCalScale[1]);
         m_imuData.compass.setZ((m_imuData.compass.z() - m_compassCalOffset[2]) * m_compassCalScale[2]);
@@ -431,6 +503,8 @@ void RTIMU::calibrateAccel()
 {
     if (!getAccelCalibrationValid())
         return;
+    
+    // printf("%s", RTMath::displayRadians("Accel 1)", m_imuData.accel));
 
     if (m_imuData.accel.x() >= 0)
         m_imuData.accel.setX(m_imuData.accel.x() / m_settings->m_accelCalMax.x());
@@ -446,8 +520,69 @@ void RTIMU::calibrateAccel()
         m_imuData.accel.setZ(m_imuData.accel.z() / m_settings->m_accelCalMax.z());
     else
         m_imuData.accel.setZ(m_imuData.accel.z() / -m_settings->m_accelCalMin.z());
+
+    // printf("%s", RTMath::displayRadians("Accel 2)", m_imuData.accel));
+
+    if (m_settings->m_accelCalEllipsoidValid) {
+        RTVector3 ev = m_imuData.accel;
+        ev -= m_settings->m_accelCalEllipsoidOffset;
+
+        m_imuData.accel.setX(ev.x() * m_settings->m_accelCalEllipsoidCorr[0][0] +
+            ev.y() * m_settings->m_accelCalEllipsoidCorr[0][1] +
+            ev.z() * m_settings->m_accelCalEllipsoidCorr[0][2]);
+
+        m_imuData.accel.setY(ev.x() * m_settings->m_accelCalEllipsoidCorr[1][0] +
+            ev.y() * m_settings->m_accelCalEllipsoidCorr[1][1] +
+            ev.z() * m_settings->m_accelCalEllipsoidCorr[1][2]);
+
+        m_imuData.accel.setZ(ev.x() * m_settings->m_accelCalEllipsoidCorr[2][0] +
+            ev.y() * m_settings->m_accelCalEllipsoidCorr[2][1] +
+            ev.z() * m_settings->m_accelCalEllipsoidCorr[2][2]);
+    }
+
+    // printf("%s", RTMath::displayRadians("Accel 3)", m_imuData.accel));
+
 }
 
+// UU automatic Accel Max/Min calibration/adjustment
+// When there is no motion the sensor should experience 1g
+// Adjust Max/Min weighted by the magnitude of the acceleration in x/y/z
+// so that the Max/Min is adjusted most where acceleration is largest
+// Pass adjustment through low pass filter
+
+void RTIMU::runtimeAdjustAccelCal()
+{
+    // printf("%s\n", m_imuData.motion ? "IMU is moving\n" : "IMU is still \n");  
+
+    if (!m_imuData.motion) {
+        
+        RTFLOAT l = m_imuData.accel.length();  // This should be 1 g
+        RTFLOAT c = (1.0 / l) - (1.0 / l / l); // adjust calibration values (empirically)
+        // printf("AccelLength: %f correction: %f\n", l ,c);
+
+        // printf("%s", RTMath::displayRadians("AccelMax", m_settings->m_accelCalMax));
+        // printf("%s", RTMath::displayRadians("AccelMin", m_settings->m_accelCalMin));
+         
+        if (m_imuData.accel.x() >= 0)
+            m_settings->m_accelCalMax.setX( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMax.x() + ACCEL_ALPHA * ( m_settings->m_accelCalMax.x() * (1.0 + m_imuData.accel.x() * c) ));
+        else
+            m_settings->m_accelCalMin.setX( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMin.x() + ACCEL_ALPHA * ( m_settings->m_accelCalMin.x() * (1.0 - m_imuData.accel.x() * c) ));
+
+        if (m_imuData.accel.y() >= 0)
+            m_settings->m_accelCalMax.setY( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMax.y() + ACCEL_ALPHA * ( m_settings->m_accelCalMax.y() * (1.0 + m_imuData.accel.y() * c) ));
+        else
+            m_settings->m_accelCalMin.setY( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMin.y() + ACCEL_ALPHA * ( m_settings->m_accelCalMin.y() * (1.0 - m_imuData.accel.y() * c) ));
+
+        if (m_imuData.accel.z() >= 0)
+            m_settings->m_accelCalMax.setZ( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMax.z() + ACCEL_ALPHA * ( m_settings->m_accelCalMax.z() * (1.0 + m_imuData.accel.z() * c) ));
+        else
+            m_settings->m_accelCalMin.setZ( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMin.z() + ACCEL_ALPHA * ( m_settings->m_accelCalMin.z() * (1.0 - m_imuData.accel.z() * c) ));
+
+        //printf("%s", RTMath::displayRadians("AccelMax", m_settings->m_accelCalMax));
+        //printf("%s", RTMath::displayRadians("AccelMin", m_settings->m_accelCalMin));
+        
+    }
+}
 void RTIMU::updateFusion()
 {
     m_fusion->newIMUData(m_imuData, m_settings);

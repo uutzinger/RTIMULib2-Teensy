@@ -59,6 +59,9 @@ public:
 
     static uint64_t currentUSecsSinceEpoch();
 
+    static RTFLOAT clamp2PI(RTFLOAT angle);
+    
+    static RTVector3 toWorld(const RTVector3& vec, const RTQuaternion& q);
     //  poseFromAccelMag generates pose Euler angles from measured settings
 
     static RTVector3 poseFromAccelMag(const RTVector3& accel, const RTVector3& mag);
@@ -70,7 +73,8 @@ public:
     //  Takes a pressure in hPa and returns height above sea level in meters
 
     static RTFLOAT convertPressureToHeight(RTFLOAT pressure, RTFLOAT staticPressure = 1013.25);
-
+    static RTFLOAT convertPressureToDepth(RTFLOAT pressure, RTFLOAT staticPressure = 1013.25);
+    static RTFLOAT convertPressureLatitudeToDepth(RTFLOAT pressure, RTFLOAT staticPressure = 1013.25, RTFLOAT latitude=32.13);
 private:
     static char m_string[1000];                             // for the display routines
 };
@@ -82,12 +86,26 @@ public:
     RTVector3();
     RTVector3(RTFLOAT x, RTFLOAT y, RTFLOAT z);
 
-    const RTVector3&  operator +=(RTVector3& vec);
-    const RTVector3&  operator -=(RTVector3& vec);
+    RTVector3& operator +=(const RTVector3& vec);
+    RTVector3& operator -=(const RTVector3& vec);
+    RTVector3& operator *=(const RTVector3& vec);
+    RTVector3& operator *=(const RTFLOAT val);
+    RTVector3& operator -=(const RTFLOAT val);
+    RTVector3& operator +=(const RTFLOAT val);
+    RTVector3& operator /=(const RTFLOAT val);
 
     RTVector3& operator =(const RTVector3& vec);
-
+    const RTVector3 operator *(const RTVector3& qb) const;
+    const RTVector3 operator *(const RTFLOAT val) const;
+//    const RTVector3 operator /(const RTVector3& qb) const;
+    const RTVector3 operator /(const RTFLOAT val) const;
+    const RTVector3 operator -(const RTVector3& qb) const;
+    const RTVector3 operator -(const RTFLOAT val) const;
+    const RTVector3 operator +(const RTVector3& qb) const;
+    const RTVector3 operator +(const RTFLOAT val) const;
+    
     RTFLOAT length();
+    RTFLOAT squareLength();
     void normalize();
     void zero();
     const char *display();
@@ -99,6 +117,8 @@ public:
     void accelToEuler(RTVector3& rollPitchYaw) const;
     void accelToQuaternion(RTQuaternion& qPose) const;
 
+    RTFLOAT toHeading(const RTVector3& mag, const float magDeclination);
+
     inline RTFLOAT x() const { return m_data[0]; }
     inline RTFLOAT y() const { return m_data[1]; }
     inline RTFLOAT z() const { return m_data[2]; }
@@ -108,6 +128,8 @@ public:
     inline void setY(const RTFLOAT val) { m_data[1] = val; }
     inline void setZ(const RTFLOAT val) { m_data[2] = val; }
     inline void setData(const int i, RTFLOAT val) { m_data[i] = val; }
+    inline void fromArray(RTFLOAT *val) { memcpy(m_data, val, 3 * sizeof(RTFLOAT)); }
+    inline void toArray(RTFLOAT *val) const { memcpy(val, m_data, 3 * sizeof(RTFLOAT)); }
 
 private:
     RTFLOAT m_data[3];
@@ -123,23 +145,34 @@ public:
     RTQuaternion& operator +=(const RTQuaternion& quat);
     RTQuaternion& operator -=(const RTQuaternion& quat);
     RTQuaternion& operator *=(const RTQuaternion& qb);
-    RTQuaternion& operator *=(const RTFLOAT val);
+    RTQuaternion& operator /=(const RTQuaternion& qb);
+    RTQuaternion& operator +=(const RTFLOAT val);
     RTQuaternion& operator -=(const RTFLOAT val);
+    RTQuaternion& operator *=(const RTFLOAT val);
+    RTQuaternion& operator /=(const RTFLOAT val);
 
     RTQuaternion& operator =(const RTQuaternion& quat);
     const RTQuaternion operator *(const RTQuaternion& qb) const;
     const RTQuaternion operator *(const RTFLOAT val) const;
+    const RTQuaternion operator /(const RTQuaternion& qb) const;
+    const RTQuaternion operator /(const RTFLOAT val) const;
     const RTQuaternion operator -(const RTQuaternion& qb) const;
     const RTQuaternion operator -(const RTFLOAT val) const;
+    const RTQuaternion operator +(const RTQuaternion& qb) const;
+    const RTQuaternion operator +(const RTFLOAT val) const;
 
+    void zero();
     void normalize();
     void toEuler(RTVector3& vec);
     void fromEuler(RTVector3& vec);
+    RTFLOAT toHeading(const RTVector3& mag, const float magDeclination );
     RTQuaternion conjugate() const;
+    RTFLOAT length();
+    RTFLOAT squareLength();
     void toAngleVector(RTFLOAT& angle, RTVector3& vec);
     void fromAngleVector(const RTFLOAT& angle, const RTVector3& vec);
+    void toGravity(RTVector3& vec); 
 
-    void zero();
     const char *display();
 
     inline RTFLOAT scalar() const { return m_data[0]; }
@@ -153,6 +186,8 @@ public:
     inline void setY(const RTFLOAT val) { m_data[2] = val; }
     inline void setZ(const RTFLOAT val) { m_data[3] = val; }
     inline void setData(const int i, RTFLOAT val) { m_data[i] = val; }
+    inline void fromArray(RTFLOAT *val) { memcpy(m_data, val, 4 * sizeof(RTFLOAT)); }
+    inline void toArray(RTFLOAT *val) const { memcpy(val, m_data, 4 * sizeof(RTFLOAT)); }
 
 private:
     RTFLOAT m_data[4];

@@ -62,6 +62,10 @@ public:
     void setAccelEnable(bool enable) { m_enableAccel = enable; }
     void setCompassEnable(bool enable) { m_enableCompass = enable;}
 
+    inline const bool getGyroEnable() { return m_enableGyro;}
+    inline const bool getAccelEnable() { return m_enableAccel; }
+    inline const bool getCompassEnable() { return m_enableCompass;}
+
     inline const RTVector3& getMeasuredPose() {return m_measuredPose;}
     inline const RTQuaternion& getMeasuredQPose() {return m_measuredQPose;}
 
@@ -87,7 +91,7 @@ protected:
 
     RTFLOAT m_slerpPower;                                   // a value 0 to 1 that controls measured state influence
     RTQuaternion m_rotationDelta;                           // amount by which measured state differs from predicted
-    RTQuaternion m_rotationPower;                           // delta raised to the appopriate power
+    RTQuaternion m_rotationPower;                           // delta raised to the appropriate power
     RTVector3 m_rotationUnitVector;                         // the vector part of the rotation delta
 
     bool m_debug;

@@ -111,7 +111,7 @@ void RTFusionKalman4::predict()
     tQuat *= m_timeDelta;
     m_stateQ += tQuat;
 
-//    m_stateQ.normalize();
+    m_stateQ.normalize();
 
     // Compute PDot = Fk * Pk_1k_1 + Pk_1k_1 * FkTranspose (note Pkk == Pk_1k_1 at this stage)
 
@@ -180,6 +180,7 @@ void RTFusionKalman4::newIMUData(RTIMU_DATA& data, const RTIMUSettings *settings
         m_gyro = data.gyro;
     else
         m_gyro = RTVector3();
+    
     m_accel = data.accel;
     m_compass = data.compass;
     m_compassValid = data.compassValid;
@@ -223,7 +224,7 @@ void RTFusionKalman4::newIMUData(RTIMU_DATA& data, const RTIMUSettings *settings
         m_stateQ.toEuler(m_fusionPose);
         m_fusionQPose = m_stateQ;
 
-        if (m_debug) {
+        if (m_debug | settings->m_fusionDebug) {
             HAL_INFO(RTMath::displayRadians("Measured pose", m_measuredPose));
             HAL_INFO(RTMath::displayRadians("Kalman pose", m_fusionPose));
             HAL_INFO(RTMath::displayRadians("Measured quat", m_measuredPose));

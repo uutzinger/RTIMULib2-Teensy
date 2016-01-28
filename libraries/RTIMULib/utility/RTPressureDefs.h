@@ -32,6 +32,7 @@
 #define RTPRESSURE_TYPE_LPS25H              3                   // LPS25H
 #define RTPRESSURE_TYPE_MS5611              4                   // MS5611
 #define RTPRESSURE_TYPE_MS5637              5                   // MS5637
+#define RTPRESSURE_TYPE_MS5803              6                   // MS5803
 
 //----------------------------------------------------------
 //
@@ -87,7 +88,7 @@
 
 //----------------------------------------------------------
 //
-//  MS5611
+//  MS5611 and MS5637
 
 //  MS5611 I2C Slave Addresses
 
@@ -96,10 +97,15 @@
 
 //	commands
 
-#define MS5611_CMD_RESET            0x1e
-#define MS5611_CMD_CONV_D1          0x48
-#define MS5611_CMD_CONV_D2          0x58
-#define MS5611_CMD_PROM             0xa0
-#define MS5611_CMD_ADC              0x00
-
+#define MS5611_CMD_RESET            0x1e // reset
+#define MS5611_CMD_CONV_D1          0x48 // convert D1 OSR=4096
+#define MS5611_CMD_CONV_D2          0x58 // convert D2 OSR=4096
+#define MS5611_CMD_PROM             0xa0 // PROM read a0-ae
+#define MS5611_CMD_ADC              0x00 // adc read
+#define MS5611_CMD_ADC_CONV         0x40 // adc conversion command
+#define MD5611_ADC_256              0x00 //Conversion Precision
+#define MD5611_ADC_512              0x02 //Conversion Precision
+#define MD5611_ADC_1024             0x04 //Conversion Precision
+#define MD5611_ADC_2048             0x06 //Conversion Precision
+#define MD5611_ADC_4096             0x08 //Conversion Precision
 #endif // _RTPRESSUREDEFS_H

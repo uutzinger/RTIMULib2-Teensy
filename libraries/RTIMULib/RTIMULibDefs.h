@@ -24,6 +24,9 @@
 //  The MPU-9250 driver code is based on code generously supplied by
 //  staslock@gmail.com (www.clickdrive.io)
 
+// UU: This file was changed to
+// include temperature from pressure, humidity and IMU in data structure
+
 #ifndef _RTIMULIBDEFS_H
 #define	_RTIMULIBDEFS_H
 
@@ -35,8 +38,9 @@
 #define RTFUSION_TYPE_NULL                  0                   // just a dummy to keep things happy if not needed
 #define RTFUSION_TYPE_KALMANSTATE4          1                   // kalman state is the quaternion pose
 #define RTFUSION_TYPE_RTQF                  2                   // RT quaternion fusion
+#define RTFUSION_TYPE_AHRS                  3                   // AHRS quaternion fusion
 
-#define RTFUSION_TYPE_COUNT                 3                   // number of fusion algorithm types
+#define RTFUSION_TYPE_COUNT                 4                   // number of fusion algorithm types
 
 //  This is a convenience structure that can be used to pass IMU data around
 
@@ -53,12 +57,17 @@ typedef struct
     RTVector3 accel;
     bool compassValid;
     RTVector3 compass;
+    bool motion;
+    bool IMUtemperatureValid;
+    RTFLOAT IMUtemperature;
     bool pressureValid;
     RTFLOAT pressure;
-    bool temperatureValid;
-    RTFLOAT temperature;
+    bool pressureTemperatureValid;
+    RTFLOAT pressureTemperature;
     bool humidityValid;
     RTFLOAT humidity;
+    bool humidityTemperatureValid;
+    RTFLOAT humidityTemperature;
 } RTIMU_DATA;
-
+	
 #endif // _RTIMULIBDEFS_H

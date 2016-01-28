@@ -121,9 +121,9 @@ void loop()
         }
         if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
             lastDisplay = now;
-//            Serial.print(RTMath::displayRadians("Gyro:", imuData.gyro));       // gyro data
-//            Serial.print(RTMath::displayRadians("Accel:", imuData.accel));    // accel data
-//            Serial.print(RTMath::displayRadians("Mag:", imuData.compass));     // compass data
+            Serial.print(RTMath::displayRadians("Gyro:", imuData.gyro));       // gyro data
+            Serial.print(RTMath::displayRadians("Accel:", imuData.accel));     // accel data
+            Serial.print(RTMath::displayRadians("Mag:", imuData.compass));     // compass data
             Serial.print(RTMath::displayDegrees("Pose:", imuData.fusionPose)); // fused output
             if (pressure->pressureRead(imuData)) {
                 if (imuData.pressureValid)

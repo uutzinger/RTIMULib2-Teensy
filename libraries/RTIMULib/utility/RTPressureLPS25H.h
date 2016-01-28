@@ -43,9 +43,9 @@ private:
     unsigned char m_pressureAddr;                           // I2C address
 
     RTFLOAT m_pressure;                                     // the current pressure
-    RTFLOAT m_temperature;                                  // the current temperature
+    RTFLOAT m_pressureTemperature;                                  // the current temperature
     bool m_pressureValid;
-    bool m_temperatureValid;
+    bool m_pressureTemperatureValid;
 
 };
 

@@ -29,6 +29,8 @@
 #define	_RTIMUDEFS_H
 
 //  IMU type codes
+//
+//  For compatibility, only add new codes at the end to avoid renumbering
 
 #define RTIMU_TYPE_AUTODISCOVER             0                   // audodiscover the IMU
 #define RTIMU_TYPE_NULL                     1                   // if no physical hardware
@@ -36,10 +38,11 @@
 #define RTIMU_TYPE_GD20HM303D               3                   // STM L3GD20H/LSM303D (Pololu Altimu)
 #define RTIMU_TYPE_GD20M303DLHC             4                   // STM L3GD20/LSM303DHLC (old Adafruit IMU)
 #define RTIMU_TYPE_LSM9DS0                  5                   // STM LSM9DS0 (eg Sparkfun IMU)
-#define RTIMU_TYPE_MPU9250                  6                   // InvenSense MPU9250
-#define RTIMU_TYPE_GD20HM303DLHC            7                   // STM L3GD20H/LSM303DHLC (new Adafruit IMU)
-#define RTIMU_TYPE_BMX055                   8                   // Bosch BMX055
-#define RTIMU_TYPE_BNO055                   9                   // Bosch BNO055
+#define RTIMU_TYPE_LSM9DS1                  6                   // STM LSM9DS1
+#define RTIMU_TYPE_MPU9250                  7                   // InvenSense MPU9250
+#define RTIMU_TYPE_GD20HM303DLHC            8                   // STM L3GD20H/LSM303DHLC (new Adafruit IMU)
+#define RTIMU_TYPE_BMX055                   9                   // Bosch BMX055
+#define RTIMU_TYPE_BNO055                   10                  // Bosch BNO055
 
 //----------------------------------------------------------
 //
@@ -51,14 +54,35 @@
 #define MPU9150_ADDRESS1            0x69
 #define MPU9150_ID                  0x68
 
-//  thes magnetometers are on aux bus
+//  these magnetometers are on aux bus
 
 #define AK8975_ADDRESS              0x0c
 #define HMC5883_ADDRESS             0x1e
 
 //  Register map
 
-#define MPU9150_YG_OFFS_TC          0x01
+#define MPU9150_XG_OFFS_TC          0x00 // Bit 7 PWR_MODE, bits 6:1 XG_OFFS_TC, bit 0 OTP_BNK_VLD
+#define MPU9150_YG_OFFS_TC          0x01 // Power Mode, read or change auxiliary I2C Voltage Level
+#define MPU9150_ZG_OFFS_TC          0x02 
+#define MPU9150_X_FINE_GAIN         0x03 // [7:0] fine gain
+#define MPU9150_Y_FINE_GAIN         0x04
+#define MPU9150_Z_FINE_GAIN         0x05
+#define MPU9150_XA_OFFSET_H         0x06 // User-defined trim values for accelerometer
+#define MPU9150_XA_OFFSET_L_TC      0x07
+#define MPU9150_YA_OFFSET_H         0x08
+#define MPU9150_YA_OFFSET_L_TC      0x09
+#define MPU9150_ZA_OFFSET_H         0x0A
+#define MPU9150_ZA_OFFSET_L_TC      0x0B
+#define MPU9150_SELF_TEST_X         0x0D
+#define MPU9150_SELF_TEST_Y         0x0E    
+#define MPU9150_SELF_TEST_Z         0x0F
+#define MPU9150_SELF_TEST_A         0x10
+#define MPU9150_XG_OFFS_USRH        0x13  // User-defined trim values for gyroscope, populate with calibration routine
+#define MPU9150_XG_OFFS_USRL        0x14
+#define MPU9150_YG_OFFS_USRH        0x15
+#define MPU9150_YG_OFFS_USRL        0x16
+#define MPU9150_ZG_OFFS_USRH        0x17
+#define MPU9150_ZG_OFFS_USRL        0x18
 #define MPU9150_SMPRT_DIV           0x19
 #define MPU9150_LPF_CONFIG          0x1a
 #define MPU9150_GYRO_CONFIG         0x1b
@@ -76,14 +100,33 @@
 #define MPU9150_INT_ENABLE          0x38
 #define MPU9150_INT_STATUS          0x3a
 #define MPU9150_ACCEL_XOUT_H        0x3b
+#define MPU9150_ACCEL_XOUT_L        0x3c
+#define MPU9150_ACCEL_YOUT_H        0x3d
+#define MPU9150_ACCEL_YOUT_L        0x3e
+#define MPU9150_ACCEL_ZOUT_H        0x3f
+#define MPU9150_ACCEL_ZOUT_L        0x40
+#define MPU9150_TEMP_OUT_H          0x41
+#define MPU9150_TEMP_OUT_L          0x42
 #define MPU9150_GYRO_XOUT_H         0x43
+#define MPU9150_GYRO_XOUT_L         0x44
+#define MPU9150_GYRO_YOUT_H         0x45
+#define MPU9150_GYRO_YOUT_L         0x46
+#define MPU9150_GYRO_ZOUT_H         0x47
+#define MPU9150_GYRO_ZOUT_L         0x48
 #define MPU9150_EXT_SENS_DATA_00    0x49
+#define MPU9150_MOT_DETECT_STATUS   0x61
+#define MPU9150_I2C_SLV0_DO         0x63
 #define MPU9150_I2C_SLV1_DO         0x64
+#define MPU9150_I2C_SLV2_DO         0x65
+#define MPU9150_I2C_SLV3_DO         0x66
 #define MPU9150_I2C_MST_DELAY_CTRL  0x67
+#define MPU9150_SIGNAL_PATH_RESET   0x68
+#define MPU9150_MOTION_DETECT_CTRL  0x69
 #define MPU9150_USER_CTRL           0x6a
 #define MPU9150_PWR_MGMT_1          0x6b
 #define MPU9150_PWR_MGMT_2          0x6c
 #define MPU9150_FIFO_COUNT_H        0x72
+#define MPU9150_FIFO_COUNT_L        0x73
 #define MPU9150_FIFO_R_W            0x74
 #define MPU9150_WHO_AM_I            0x75
 
@@ -589,7 +632,7 @@
 #define LSM9DS0_ACCELMAG_ADDRESS1   0x1d
 #define LSM9DS0_ACCELMAG_ID         0x49
 
-//  L3GD20 Register map
+//  LSM9DS0 Register map
 
 #define LSM9DS0_GYRO_WHO_AM_I       0x0f
 #define LSM9DS0_GYRO_CTRL1          0x20
@@ -752,6 +795,177 @@
 #define LSM9DS0_COMPASS_FSR_4   1
 #define LSM9DS0_COMPASS_FSR_8   2
 #define LSM9DS0_COMPASS_FSR_12  3
+
+//----------------------------------------------------------
+//
+//  LSM9DS1
+
+//  I2C Slave Addresses
+
+#define LSM9DS1_ADDRESS0  0x6a
+#define LSM9DS1_ADDRESS1  0x6b
+#define LSM9DS1_ID        0x68
+
+#define LSM9DS1_MAG_ADDRESS0        0x1c
+#define LSM9DS1_MAG_ADDRESS1        0x1d
+#define LSM9DS1_MAG_ADDRESS2        0x1e
+#define LSM9DS1_MAG_ADDRESS3        0x1f
+#define LSM9DS1_MAG_ID              0x3d
+
+//  LSM9DS1 Register map
+
+#define LSM9DS1_ACT_THS             0x04
+#define LSM9DS1_ACT_DUR             0x05
+#define LSM9DS1_INT_GEN_CFG_XL      0x06
+#define LSM9DS1_INT_GEN_THS_X_XL    0x07
+#define LSM9DS1_INT_GEN_THS_Y_XL    0x08
+#define LSM9DS1_INT_GEN_THS_Z_XL    0x09
+#define LSM9DS1_INT_GEN_DUR_XL      0x0A
+#define LSM9DS1_REFERENCE_G         0x0B
+#define LSM9DS1_INT1_CTRL           0x0C
+#define LSM9DS1_INT2_CTRL           0x0D
+#define LSM9DS1_WHO_AM_I            0x0F
+#define LSM9DS1_CTRL1               0x10
+#define LSM9DS1_CTRL2               0x11
+#define LSM9DS1_CTRL3               0x12
+#define LSM9DS1_ORIENT_CFG_G        0x13
+#define LSM9DS1_INT_GEN_SRC_G       0x14
+#define LSM9DS1_OUT_TEMP_L          0x15
+#define LSM9DS1_OUT_TEMP_H          0x16
+#define LSM9DS1_STATUS              0x17
+#define LSM9DS1_OUT_X_L_G           0x18
+#define LSM9DS1_OUT_X_H_G           0x19
+#define LSM9DS1_OUT_Y_L_G           0x1A
+#define LSM9DS1_OUT_Y_H_G           0x1B
+#define LSM9DS1_OUT_Z_L_G           0x1C
+#define LSM9DS1_OUT_Z_H_G           0x1D
+#define LSM9DS1_CTRL4               0x1E
+#define LSM9DS1_CTRL5               0x1F
+#define LSM9DS1_CTRL6               0x20
+#define LSM9DS1_CTRL7               0x21
+#define LSM9DS1_CTRL8               0x22
+#define LSM9DS1_CTRL9               0x23
+#define LSM9DS1_CTRL10              0x24
+#define LSM9DS1_INT_GEN_SRC_XL      0x26
+#define LSM9DS1_STATUS2             0x27
+#define LSM9DS1_OUT_X_L_XL          0x28
+#define LSM9DS1_OUT_X_H_XL          0x29
+#define LSM9DS1_OUT_Y_L_XL          0x2A
+#define LSM9DS1_OUT_Y_H_XL          0x2B
+#define LSM9DS1_OUT_Z_L_XL          0x2C
+#define LSM9DS1_OUT_Z_H_XL          0x2D
+#define LSM9DS1_FIFO_CTRL           0x2E
+#define LSM9DS1_FIFO_SRC            0x2F
+#define LSM9DS1_INT_GEN_CFG_G       0x30
+#define LSM9DS1_INT_GEN_THS_XH_G    0x31
+#define LSM9DS1_INT_GEN_THS_XL_G    0x32
+#define LSM9DS1_INT_GEN_THS_YH_G    0x33
+#define LSM9DS1_INT_GEN_THS_YL_G    0x34
+#define LSM9DS1_INT_GEN_THS_ZH_G    0x35
+#define LSM9DS1_INT_GEN_THS_ZL_G    0x36
+#define LSM9DS1_INT_GEN_DUR_G       0x37
+
+//  Gyro sample rate defines
+
+#define LSM9DS1_GYRO_SAMPLERATE_14_9    0
+#define LSM9DS1_GYRO_SAMPLERATE_59_5    1
+#define LSM9DS1_GYRO_SAMPLERATE_119     2
+#define LSM9DS1_GYRO_SAMPLERATE_238     3
+#define LSM9DS1_GYRO_SAMPLERATE_476     4
+#define LSM9DS1_GYRO_SAMPLERATE_952     5
+
+//  Gyro banwidth defines
+
+#define LSM9DS1_GYRO_BANDWIDTH_0    0
+#define LSM9DS1_GYRO_BANDWIDTH_1    1
+#define LSM9DS1_GYRO_BANDWIDTH_2    2
+#define LSM9DS1_GYRO_BANDWIDTH_3    3
+
+//  Gyro FSR defines
+
+#define LSM9DS1_GYRO_FSR_250        0
+#define LSM9DS1_GYRO_FSR_500        1
+#define LSM9DS1_GYRO_FSR_2000       2
+
+//  Gyro high pass filter defines
+
+#define LSM9DS1_GYRO_HPF_0          0
+#define LSM9DS1_GYRO_HPF_1          1
+#define LSM9DS1_GYRO_HPF_2          2
+#define LSM9DS1_GYRO_HPF_3          3
+#define LSM9DS1_GYRO_HPF_4          4
+#define LSM9DS1_GYRO_HPF_5          5
+#define LSM9DS1_GYRO_HPF_6          6
+#define LSM9DS1_GYRO_HPF_7          7
+#define LSM9DS1_GYRO_HPF_8          8
+#define LSM9DS1_GYRO_HPF_9          9
+
+//  Mag Register Map
+
+#define LSM9DS1_MAG_OFFSET_X_L      0x05
+#define LSM9DS1_MAG_OFFSET_X_H      0x06
+#define LSM9DS1_MAG_OFFSET_Y_L      0x07
+#define LSM9DS1_MAG_OFFSET_Y_H      0x08
+#define LSM9DS1_MAG_OFFSET_Z_L      0x09
+#define LSM9DS1_MAG_OFFSET_Z_H      0x0A
+#define LSM9DS1_MAG_WHO_AM_I        0x0F
+#define LSM9DS1_MAG_CTRL1           0x20
+#define LSM9DS1_MAG_CTRL2           0x21
+#define LSM9DS1_MAG_CTRL3           0x22
+#define LSM9DS1_MAG_CTRL4           0x23
+#define LSM9DS1_MAG_CTRL5           0x24
+#define LSM9DS1_MAG_STATUS          0x27
+#define LSM9DS1_MAG_OUT_X_L         0x28
+#define LSM9DS1_MAG_OUT_X_H         0x29
+#define LSM9DS1_MAG_OUT_Y_L         0x2A
+#define LSM9DS1_MAG_OUT_Y_H         0x2B
+#define LSM9DS1_MAG_OUT_Z_L         0x2C
+#define LSM9DS1_MAG_OUT_Z_H         0x2D
+#define LSM9DS1_MAG_INT_CFG         0x30
+#define LSM9DS1_MAG_INT_SRC         0x31
+#define LSM9DS1_MAG_INT_THS_L       0x32
+#define LSM9DS1_MAG_INT_THS_H       0x33
+
+//  Accel sample rate defines
+
+#define LSM9DS1_ACCEL_SAMPLERATE_14_9    1
+#define LSM9DS1_ACCEL_SAMPLERATE_59_5    2
+#define LSM9DS1_ACCEL_SAMPLERATE_119     3
+#define LSM9DS1_ACCEL_SAMPLERATE_238     4
+#define LSM9DS1_ACCEL_SAMPLERATE_476     5
+#define LSM9DS1_ACCEL_SAMPLERATE_952     6
+
+//  Accel FSR
+
+#define LSM9DS1_ACCEL_FSR_2     0
+#define LSM9DS1_ACCEL_FSR_16    1
+#define LSM9DS1_ACCEL_FSR_4     2
+#define LSM9DS1_ACCEL_FSR_8     3
+
+//  Accel filter bandwidth
+
+#define LSM9DS1_ACCEL_LPF_408   0
+#define LSM9DS1_ACCEL_LPF_211   1
+#define LSM9DS1_ACCEL_LPF_105   2
+#define LSM9DS1_ACCEL_LPF_50    3
+
+//  Compass sample rate defines
+
+#define LSM9DS1_COMPASS_SAMPLERATE_0_625    0
+#define LSM9DS1_COMPASS_SAMPLERATE_1_25     1
+#define LSM9DS1_COMPASS_SAMPLERATE_2_5      2
+#define LSM9DS1_COMPASS_SAMPLERATE_5        3
+#define LSM9DS1_COMPASS_SAMPLERATE_10       4
+#define LSM9DS1_COMPASS_SAMPLERATE_20       5
+#define LSM9DS1_COMPASS_SAMPLERATE_40       6
+#define LSM9DS1_COMPASS_SAMPLERATE_80       7
+
+//  Compass FSR
+
+#define LSM9DS1_COMPASS_FSR_4   0
+#define LSM9DS1_COMPASS_FSR_8   1
+#define LSM9DS1_COMPASS_FSR_12  2
+#define LSM9DS1_COMPASS_FSR_16  3
 
 //----------------------------------------------------------
 //

@@ -21,7 +21,7 @@
 //  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#include <Wire.h>
+//#include <Wire.h>
 #include <SD.h>
 #include <SPI.h>
 #include <EEPROM.h>
@@ -54,6 +54,9 @@ void setup()
     }
     Wire.begin();
     settings = new RTIMUSettings();
+    // change configurations here if you need to as there is no SD card and therefore no ini file.
+    
+    //
     imu = RTIMU::createIMU(settings);                        // create the imu object
    
     Serial.print("TeensyIMU starting using device "); Serial.println(imu->IMUName());
@@ -105,10 +108,21 @@ void loop()
         }
         if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
             lastDisplay = now;
-//            Serial.print(RTMath::displayRadians("Gyro:", imuData.gyro));       // gyro data
-//            Serial.print(RTMath::displayRadians("Accel:", imuData.accel));    // accel data
-//            Serial.print(RTMath::displayRadians("Mag:", imuData.compass));     // compass data
+            Serial.print(RTMath::displayRadians("Gyro:", imuData.gyro));       // gyro data
+            Serial.print(RTMath::displayRadians("Accel:", imuData.accel));     // accel data
+            Serial.print(RTMath::displayRadians("Mag:", imuData.compass));     // compass data
             Serial.print(RTMath::displayDegrees("Pose:", imuData.fusionPose)); // fused output
+            Serial.printf("%x, ", imuData.IMUtemperature);
+            Serial.printf("%x, ", imuData.pressure);
+            Serial.printf("%x, ", imuData.pressureTemperature);
+            Serial.printf("%x, ", imuData.humidity);
+            Serial.printf("%x, ", imuData.humidityTemperature);
+            Serial.println();
+            if (imuData.motion) { 
+              Serial.print("is moving");
+            } else {
+              Serial.print("is still");
+            }
             Serial.println();
         }
     }

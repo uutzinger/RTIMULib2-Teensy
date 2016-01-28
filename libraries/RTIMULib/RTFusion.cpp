@@ -34,7 +34,8 @@
 const char *RTFusion::m_fusionNameMap[] = {
     "NULL",
     "Kalman STATE4",
-    "RTQF"};
+    "RTQF",
+    "AHRS"};
 
 RTFusion::RTFusion()
 {
@@ -113,25 +114,55 @@ void RTFusion::calculatePose(const RTVector3& accel, const RTVector3& mag, float
 RTVector3 RTFusion::getAccelResiduals()
 {
     RTQuaternion rotatedGravity;
-    RTQuaternion fusedConjugate;
-    RTQuaternion qTemp;
+    // RTQuaternion fusionQPoseConjugate;
+    //RTQuaternion qTemp;
     RTVector3 residuals;
 
     //  do gravity rotation and subtraction
 
     // create the conjugate of the pose
 
-    fusedConjugate = m_fusionQPose.conjugate();
+    // fusionQPoseConjugate = m_fusionQPose.conjugate();
 
     // now do the rotation - takes two steps with qTemp as the intermediate variable
-
-    qTemp = m_gravity * m_fusionQPose;
-    rotatedGravity = fusedConjugate * qTemp;
-
-    // now adjust the measured accel and change the signs to make sense
-
-    residuals.setX(-(m_accel.x() - rotatedGravity.x()));
-    residuals.setY(-(m_accel.y() - rotatedGravity.y()));
-    residuals.setZ(-(m_accel.z() - rotatedGravity.z()));
+    // rotatedGravity = fusionQPoseConjugate * m_gravity * m_fusionQPose;;
+    // qTemp = m_gravity * m_fusionQPose; 
+    // Above code is replace with this:
+    // qTemp.setScalar(-m_fusionQPose.z());
+    // qTemp.setX(-m_fusionQPose.y());
+    // qTemp.setY(m_fusionQPose.x());
+    // qTemp.setZ(m_fusionQPose.scalar());	
+    // rotatedGravity = fusionQPoseConjugate * qTemp;
+    // residuals.setX( - (rotatedGravity.x() - m_accel.x() ) );
+    // residuals.setY( - (rotatedGravity.y() - m_accel.y() ) );
+    // residuals.setZ( - (rotatedGravity.z() - m_accel.z() ) );
+	
+    /** because gravity is zero except z is 1, we can simplify
+    SAGE CODE	
+	N.<c,d,qas,qax,qay,qaz,qbs,qbx,qby,qbz,s> = QQ[]
+	H.<i,j,k> = QuaternionAlgebra(c,d)
+	a = qas + qax * i + qay * j + qaz * k
+	b = qbs + qbx * i + qby * j + qbz * k
+	gravity = 0 + 0 * i + 0 * j + 1 * k
+	roatedGravity = a.conjugate() * gravity * a
+	
+	Results:
+	s : 0
+	x : (2*qax*qaz - 2*qas*qay)*i 
+	y : (2*qay*qaz + 2*qas*qax)*j
+	z : (  qaz^2  - qax^2 -qay^2 + qas^2)*k
+    **/
+    
+	rotatedGravity.setX(2.0f*m_fusionQPose.x() * m_fusionQPose.z() - 2.0f*m_fusionQPose.scalar() * m_fusionQPose.y());
+	rotatedGravity.setY(2.0f*m_fusionQPose.y() * m_fusionQPose.z() + 2.0f*m_fusionQPose.scalar() * m_fusionQPose.x());
+	rotatedGravity.setZ(m_fusionQPose.z() * m_fusionQPose.z() - m_fusionQPose.x() * m_fusionQPose.x() - m_fusionQPose.y() * m_fusionQPose.y() + m_fusionQPose.scalar() * m_fusionQPose.scalar());
+	
+	// making sure gravity remains 1g after rotation
+    rotatedGravity.normalize();
+    
+	// now get the residuals
+    residuals.setX( m_accel.x() - rotatedGravity.x() );
+    residuals.setY( m_accel.y() - rotatedGravity.y() );
+    residuals.setZ( m_accel.z() - rotatedGravity.z() );
     return residuals;
 }

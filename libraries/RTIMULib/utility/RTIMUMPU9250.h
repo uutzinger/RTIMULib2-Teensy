@@ -33,25 +33,46 @@
 //  Define this symbol to use cache mode
 
 #define MPU9250_CACHE_MODE
+#define MPU9250_FIFO_WITH_TEMP    1
+#define MPU9250_FIFO_WITH_COMPASS 1
 
 //  FIFO transfer size
 
-#define MPU9250_FIFO_CHUNK_SIZE     12                      // gyro and accels take 12 bytes
+#if MPU9250_FIFO_WITH_TEMP == 1
+    #if MPU9250_FIFO_WITH_COMPASS == 1
+        #define MPU9250_FIFO_CHUNK_SIZE 22           // adding compass/slave1 adds 6 bytes plus 2 bytes for status for AKA compass 
+    #else 
+        #define MPU9250_FIFO_CHUNK_SIZE 14           // adding temperature adds 2 bytes
+    #endif
+#else
+    #if MPU9250_FIFO_WITH_COMPASS == 1
+        #define MPU9250_FIFO_CHUNK_SIZE 20          // adding compass 8 bytes max
+    #else 
+        #define MPU9250_FIFO_CHUNK_SIZE 12          // gyro and accels take 12 bytes
+    #endif
+#endif
 
 #ifdef MPU9250_CACHE_MODE
 
 //  Cache mode defines
 
-#define MPU9250_CACHE_SIZE          8                       // number of chunks in a block
-#define MPU9250_CACHE_BLOCK_COUNT   8                       // number of cache blocks
+#define MPU9250_CACHE_SIZE          16                      // number of chunks in a block
+#define MPU9250_CACHE_BLOCK_COUNT   16                      // number of cache blocks
+
+#define TEMPERATURE_DELTA 0.05f                             // change in temperature necessary to recompute the biases
 
 typedef struct
 {
     unsigned char data[MPU9250_FIFO_CHUNK_SIZE * MPU9250_CACHE_SIZE];
     int count;                                              // number of chunks in the cache block
     int index;                                              // current index into the cache
+    // if temperature and compass are not read through FIFO
+    #if MPU9250_FIFO_WITH_COMPASS == 0
     unsigned char compass[8];                               // the raw compass readings for the block
-
+    #endif
+    #if MPU9250_FIFO_WITH_TEMP == 0
+    unsigned char temperature[2];                           // the raw temperature reading
+    #endif
 } MPU9250_CACHE_BLOCK;
 
 #endif
@@ -77,7 +98,6 @@ public:
     virtual int IMUGetPollInterval();
 
 protected:
-
     RTFLOAT m_compassAdjust[3];                             // the compass fuse ROM values converted for use
 
 private:
@@ -91,8 +111,8 @@ private:
     bool bypassOff();
 
     bool m_firstTime;                                       // if first sample
-
-    unsigned char m_slaveAddr;                              // I2C address of MPU9150
+    RTFLOAT m_IMUtemperature_previous;
+    unsigned char m_slaveAddr;                              // I2C address of MPU9250
 
     unsigned char m_gyroLpf;                                // gyro low pass filter setting
     unsigned char m_accelLpf;                               // accel low pass filter setting
@@ -102,15 +122,12 @@ private:
 
     RTFLOAT m_gyroScale;
     RTFLOAT m_accelScale;
-
-
 #ifdef MPU9250_CACHE_MODE
 
     MPU9250_CACHE_BLOCK m_cache[MPU9250_CACHE_BLOCK_COUNT]; // the cache itself
     int m_cacheIn;                                          // the in index
     int m_cacheOut;                                         // the out index
     int m_cacheCount;                                       // number of used cache blocks
-
 #endif
 
 };

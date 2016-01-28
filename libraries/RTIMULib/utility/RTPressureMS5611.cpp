@@ -56,8 +56,8 @@ bool RTPressureMS5611::pressureInit()
 bool RTPressureMS5611::pressureRead(RTIMU_DATA& data)
 {
     data.pressureValid = false;
-    data.temperatureValid = false;
-    data.temperature = 0;
+    data.pressureTemperatureValid = false;
+    data.pressureTemperature = 0;
     data.pressure = 0;
 
     if (m_state == MS5611_STATE_IDLE) {
@@ -74,8 +74,8 @@ bool RTPressureMS5611::pressureRead(RTIMU_DATA& data)
 
     if (m_validReadings) {
         data.pressureValid = true;
-        data.temperatureValid = true;
-        data.temperature = m_temperature;
+        data.pressureTemperatureValid = true;
+        data.pressureTemperature = m_pressureTemperature;
         data.pressure = m_pressure;
     }
     return true;
@@ -146,9 +146,9 @@ void RTPressureMS5611::pressureBackground()
         }
 
         m_pressure = (RTFLOAT)(((((int64_t)m_D1 * sens) >> 21) - offset) >> 15) / (RTFLOAT)100.0;
-        m_temperature = (RTFLOAT)temperature/(RTFLOAT)100;
+        m_pressureTemperature = (RTFLOAT)temperature/(RTFLOAT)100;
 
-        // printf("Temp: %f, pressure: %f\n", m_temperature, m_pressure);
+        // printf("Temp: %f, pressure: %f\n", m_pressureTemperature, m_pressure);
 
         m_validReadings = true;
         m_state = MS5611_STATE_IDLE;

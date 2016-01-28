@@ -71,8 +71,8 @@ bool RTIMUHal::HALRead(unsigned char slaveAddr, unsigned char regAddr, unsigned 
 
         if (strlen(errorMsg) > 0)
             HAL_ERROR1("I2C read failed - %s\n", errorMsg);
-
         return false;
+		
     } else {
         SPI.beginTransaction(m_SPISettings);
         digitalWrite(m_SPISelect, LOW);
@@ -85,6 +85,26 @@ bool RTIMUHal::HALRead(unsigned char slaveAddr, unsigned char regAddr, unsigned 
     }
 }
 
+bool RTIMUHal::HALRead(unsigned char slaveAddr, unsigned char length,
+                    unsigned char *data, const char *errorMsg)
+{
+    if (m_busIsI2C) {
+        if (I2Cdev::readBytes(slaveAddr, length, data, 10) == length)
+             return true;
+        if (strlen(errorMsg) > 0)
+            HAL_ERROR1("I2C read failed - %s\n", errorMsg);
+        return false;
+    } else {
+        SPI.beginTransaction(m_SPISettings);
+        digitalWrite(m_SPISelect, LOW);
+        for (int i = 0; i < length; i++)
+            data[i] = SPI.transfer(0);
+        digitalWrite(m_SPISelect, HIGH);
+        SPI.endTransaction();
+        return true;
+    }
+}
+					
 bool RTIMUHal::HALWrite(unsigned char slaveAddr, unsigned char regAddr,
                   unsigned char length, unsigned char const *data, const char *errorMsg)
 {
@@ -94,8 +114,8 @@ bool RTIMUHal::HALWrite(unsigned char slaveAddr, unsigned char regAddr,
 
         if (strlen(errorMsg) > 0)
             HAL_ERROR1("I2C write failed - %s\n", errorMsg);
-
         return false;
+		
     } else {
         SPI.beginTransaction(m_SPISettings);
         digitalWrite(m_SPISelect, LOW);
