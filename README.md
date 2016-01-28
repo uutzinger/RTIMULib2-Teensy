@@ -7,6 +7,10 @@ Additional changes to this fork include additional pressure sensors, humidity se
 
 *** Magnetometer calibration is critical for good performance and, with some IMU chips, meaningful fusion results will not be obtained at all unless the magnetometers have been calibrated ***
 
+*** ToDo: NavX MXP sensor code implements a magnetic distortion detection and heading correction code: Earth's magnetic field strength should not change based on pose of sensor. If field strength changes during motion, a motor or field anomaly is present and the fusion algorithm should automatically turn off magnetometer input. This anomaly would need to be detected before new data is fed into fusion algorithm.
+*** ToDo: When no motion is detected, the acceleration reading should be 1g. While not trivial it should be possible to conduct an iterative runtime correction of the accelerometer max/min scaling. Some code is provided but only works when the sensor is held in place.
+*** ToDo: Teensy implementation reads ini file from SD card if present. Currently EEPROM holds only magnetometer max/min data. It should be investigated if setting structure is less than 2kbyte in sizeand fits into EEPROM. If yes, then a program should be written to convert ini file to such structure and save it on EEPROM instead of using an SD card.
+ 
 ## Features
 
 RTIMULib2-Teensy currently supports the following IMUs:
@@ -21,8 +25,7 @@ RTIMULib2-Teensy currently supports the following IMUs:
 * L3GD20H + LSM303DLHC (optionally with BMP180) as used on the new Adafruit 10-dof IMU.
 * Bosch BMX055 (although magnetometer support is experimental currently).
 * Bosch BNO055 with onchip fusion.
-
-* 9250 and 9150 are set to provide temperature readings and use FIFO for all sensor readings
+9250 and 9150 are set to provide temperature readings and use FIFO for all sensor readings
 
 Pressure/temperature sensing is supported for the following pressure sensors:
 
@@ -34,8 +37,8 @@ Pressure/temperature sensing is supported for the following pressure sensors:
 
 Humidity/temperature sensing is supported for the following humidity sensors:
 
-HTS221
-HTU21D
+* HTS221
+* HTU21D
 
 The humidity infrastructure and HTS221 support was generously supplied by XECDesign. It follows the model used by the pressure infrastructure - see RTIMULibDrive11 for an example of how to use this.
 
