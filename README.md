@@ -1,4 +1,4 @@
-# RTIMULib2-Teensy - a versatile 9-dof and 10-dof IMU library for the Teensy3.1
+# RTIMULib2-Teensy - a versatile 9-dof and 10-dof IMU library for the Teensy3.1 & 3.2
 
 RTIMULib2-Teensy is the simplest way to connect a 9-dof or 10-dof IMU to a Teensy3.1 or 3.2 and obtain fully fused quaternion or Euler angle pose data.
 
