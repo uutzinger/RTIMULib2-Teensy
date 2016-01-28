@@ -1,8 +1,9 @@
 # RTIMULib2-Teensy - a versatile 9-dof and 10-dof IMU library for the Teensy3.1
 
-RTIMULib2-Teensy is the simplest way to connect a 9-dof or 10-dof IMU to a Teensy3.1 and obtain fully fused quaternion or Euler angle pose data.
+RTIMULib2-Teensy is the simplest way to connect a 9-dof or 10-dof IMU to a Teensy3.1 or 3.2 and obtain fully fused quaternion or Euler angle pose data.
 
 RTIMULib2-Teensy is the development version of the original RTIMULib-Teensy library. So far, the main change is the addition of the runtime magnetometer calibration functionality.
+Additional changes to this fork include additional pressure sensors, humidity sensors, temperature calibration option, cross axis corrections for acceleration, attempt for runtime accelerometer calibration [beta]
 
 *** Magnetometer calibration is critical for good performance and, with some IMU chips, meaningful fusion results will not be obtained at all unless the magnetometers have been calibrated ***
 
