@@ -47,7 +47,9 @@ unsigned long lastDisplay;
 unsigned long lastRate;
 unsigned long lastInAvail;
 unsigned long lastTimestamp;
-int dt;
+unsigned long motionstart;
+int dt;       // time in between samples
+int dtmotion; // time during which motion occured
 int sampleCount;
 int sampleRate;
 
@@ -82,8 +84,7 @@ byte systemStatusAUX = B00000000;
 #define STATE_HUMIDITYTEMPVALID  3
 
 // Position Sensing
-float accScale;                                       // conversion to 9.81 m/s/s
-RTVector3 acc;                                        // calibrated acceleration
+float accScale = 9.81;                                       // conversion to 9.81 m/s/s
 RTVector3 residuals;                                  // gravity subtracted acceleration
 RTVector3 residuals_bias;                             // average acceleration when device is stationary
 RTVector3 residuals_sum;                              // for computing average acceleration
@@ -93,7 +94,9 @@ RTVector3 worldVelocity;                              // integrated acceleration
 RTVector3 worldVelocity_bias;                         // velocity bias computed at end of motion
 RTVector3 worldVelocity_previous;                     // for trapezoidal integration of velocity
 RTVector3 worldLocation;                              // integrated velocity
+RTQuaternion gravity;
 unsigned long residualsCount = 0;                     // for bias accumulation
+bool lastmotion=false, motionstarted=false, motionended=false;
 
 // Heading
 float heading;                                        // tilt compensated heading
@@ -149,9 +152,9 @@ void setup()
     imu->setAccelEnable(true);
     imu->setCompassEnable(true);
 	
-	  setBit(fusionStatus, byte(STATE_FUSION_GYROENABLE),    imu->getGyroEnable() );
-	  setBit(fusionStatus, byte(STATE_FUSION_ACCELENABLE),   imu->getAccelEnable() );
-	  setBit(fusionStatus, byte(STATE_FUSION_COMPASSENABLE), imu->getCompassEnable() );
+	  setBit(fusionStatus, (byte)STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
+	  setBit(fusionStatus, (byte)STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
+	  setBit(fusionStatus, (byte)STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
 
 	  // House keeping & Initializing
     lastDisplay = lastRate = lastTimestamp = lastInAvail = micros();
@@ -164,17 +167,91 @@ void setup()
 	  worldVelocity_bias.zero();
 	  heading_avg.clear();
 		accScale = 9.81f; 
+
+    gravity.setScalar(0);
+    gravity.setX(0);
+    gravity.setY(0);
+    gravity.setZ(1);
 }
 
 void loop()
 {  
     unsigned long now = micros();
+    
+    RTQuaternion rotatedGravity;
+    RTQuaternion fusedConjugate;
+    RTQuaternion qTemp;
+    
     if (imu->IMURead()) {                       // get the latest data if any avail
         imuData = imu->getIMUData();
         sampleCount++;
         dt=imuData.timestamp-lastTimestamp;
         lastTimestamp = imuData.timestamp;
-		
+
+        ////////////////////////////////////////////////////////////////////////////////
+        // Motion Computations
+        ////////////////////////////////////////////////////////////////////////////////
+
+        //  do gravity rotation and subtraction
+        fusedConjugate = imuData.fusionQPose.conjugate(); // create the conjugate of the pose
+        qTemp = gravity * imuData.fusionQPose; // now do the rotation - takes two steps with qTemp as the intermediate variable
+        rotatedGravity = fusedConjugate * qTemp;
+        // now adjust the measured accel and change the signs to make sense
+        residuals.setX(-(imuData.accel.x() - rotatedGravity.x()));
+        residuals.setY(-(imuData.accel.y() - rotatedGravity.y()));
+        residuals.setZ(-(imuData.accel.z() - rotatedGravity.z()));
+        residuals = residuals * accScale; // create physical values
+
+        // At end of a motion period, acceleration needs to be zero
+        // During no motion, acceleration should be zero
+        motionstarted = (imuData.motion && !lastmotion); // is 1 if motion started
+        motionended   = (!imuData.motion && lastmotion); // is 1 if motion ended
+        lastmotion = imuData.motion;
+        if (motionstarted) {motionstart = imuData.timestamp;}
+        // Accumulate residual acceleration during no motion to compute an acceleration bias
+        if (imuData.motion == false) {                  // if no motion, accumulate residual motion for background acceleration computation
+          residuals_sum  = residuals_sum + residuals;
+          residualsCount++; 
+        } // end motion
+        if ((motionstarted) || (residualsCount >=50))  { // freeze background acceleration accumulation when motion starts
+          if (residualsCount > 10) {                     // We want at least 10 useful background readings
+            residuals_bias = residuals_sum / ((float)residualsCount); // update average residual acceleration
+            // lowpass filter the bias
+          }
+          residualsCount=0;                             // Reset background accumulation
+          residuals_sum.zero();
+        }
+        // subtract acceleration bias from residuals 
+        residuals = (residuals - residuals_bias); // subtract acceleration bias
+
+        // Convert data into World Coordinate System
+        // Compute Velocity
+        worldResiduals = RTMath::toWorld(residuals, imuData.fusionQPose); // rotate residuals to world coordinate system
+        // integrate acceleration and add to velocity (uses trapezoidal intergration technique
+        worldVelocity = worldVelocity_previous + ((worldResiduals + worldResiduals_previous)*0.5f*(float(dt)  * 0.000001f)); // dt is in microseconds 
+        // Update Velocity Bias
+        // When motion ends, velocity should be zero
+        if (motionended) {
+          dtmotion = (float(imuData.timestamp-motionstart))/1.0E6; // in seconds
+          if (dtmotion > 0.5f) { // update velocity bias if we had at least half of second motion
+            worldVelocity_bias=worldVelocity/dtmotion;
+            // could use some learning averaging here with previous values and weigthing long motions more than short ones
+          }
+        }
+        // Update Velocity
+        worldVelocity = worldVelocity - ( worldVelocity_bias * (float(dt) * 0.000001f) );
+        // Avoid Velcity Bias
+        if (imuData.motion == false) {     // its not moving
+          worldVelocity.zero();    // minimize error propagation
+        }
+
+        // Compute Position
+        worldLocation = worldLocation + ((worldVelocity + worldVelocity_previous)*0.5f)*((float)dt)*0.000001f;
+
+        // Reset previous values
+        worldResiduals_previous = worldResiduals;
+        worldVelocity_previous  = worldVelocity;
+
     		// Do we want to update sampling rate?
         if ((now - lastRate) >= 1000000) { // 1 second
             sampleRate=sampleCount;
@@ -216,14 +293,22 @@ void loop()
             Serial.print(RTMath::displayRadians("Accel:", imuData.accel));     // accel data
             Serial.print(RTMath::displayRadians("Mag:", imuData.compass));     // compass data
             Serial.print(RTMath::displayDegrees("Pose:", imuData.fusionPose)); // fused output
-            Serial.printf("IMU_T %x, ", imuData.IMUtemperature);
-            Serial.printf("P %x, ", imuData.pressure);
-            Serial.printf("P_T%x, ", imuData.pressureTemperature);
-            Serial.printf("H %x, ", imuData.humidity);
-            Serial.printf("H_T %x ", imuData.humidityTemperature);
-            Serial.println();
             
-			      if (imuData.motion) { Serial.println("Sensor is moving"); } else { Serial.println("Sensor is still"); } // motion
+            Serial.print(RTMath::displayRadians("Residuals:", residuals));                    // Residuals in device coordiante system
+            Serial.print(RTMath::displayRadians("Residuals Bias:", residuals_bias));          // Residuals bias in device coordiante system
+            Serial.print(RTMath::displayRadians("World Residuals:", worldResiduals));         // Residuals in device world coordiante system
+            Serial.print(RTMath::displayRadians("World Velocity:", worldVelocity));           // Velocity in world coordiante system
+            Serial.print(RTMath::displayRadians("World Velocity Bias:", worldVelocity_bias)); // Velocity bias in world coordiante system
+            Serial.print(RTMath::displayRadians("World Position:", worldLocation));           // Location in world coordiante system
+            
+            if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
+
+            Serial.printf("IMU_T %x, ", imuData.IMUtemperature);
+            Serial.printf("P %x, ",     imuData.pressure);
+            Serial.printf("P_T%x, ",    imuData.pressureTemperature);
+            Serial.printf("H %x, ",     imuData.humidity);
+            Serial.printf("H_T %x ",    imuData.humidityTemperature);
+            Serial.println();
 			
       			Serial.printf("IMUP:  %b ", getBit(systemStatusIMU, STATE_FUSIONPOSEVALID));
       			Serial.printf("IMUQP: %b ", getBit(systemStatusIMU, STATE_FUSIONQPOSEVALID));
@@ -275,13 +360,17 @@ void loop()
   			} else if (inByte == 'S') { // turn on  streaming
   				STREAM=true;
   			} else if (inByte == 'K') {
-  				//calibrateCompass(); // Needs to be written to enable auto calibration
+  				//calibrateCompass(); 
+  				// Needs to be written to enable auto calibration and override EEPROM settings
   			} else if (inByte == 'k') {
-  				//Save and Stop Compass Calibration(); // Needs to be written to enable auto calibration
+  				//Save and Stop Compass Calibration(); 
+  				// Needs to be written to stop and save calibration to EEPROM
   			} else if (inByte == 'C') {
-  				//calibrateAccel());  // Needs to be written to enable accel calibration
+  				//calibrateAccel());  
+  				// Needs to be written to enable accel calibration during no motion
   			} else if (inByte == 'c') {
-  				//save and stop accel calibration());  // Needs to be written to enable accel calibration
+  				//save and stop accel calibration());  
+  				// Needs to be written to stop accel calibration and save data
   			} else if (inByte == 'R') { // send raw
   				HEXsendRAW();
   			} else if (inByte == 'r') { // send residuals

@@ -21,12 +21,22 @@ RTIMULib2-Teensy currently supports the following IMUs:
 * Bosch BMX055 (although magnetometer support is experimental currently).
 * Bosch BNO055 with onchip fusion.
 
+* 9250 and 9150 are set to provide temperature readings and use FIFO for all sensor readings
+
 Pressure/temperature sensing is supported for the following pressure sensors:
 
 * BMP180
 * LPS25H
 * MS5611
 * MS5637
+* MS5803 (10atm underwater)
+
+Humidity/temperature sensing is supported for the following humidity sensors:
+
+HTS221
+HTU21D
+
+The humidity infrastructure and HTS221 support was generously supplied by XECDesign. It follows the model used by the pressure infrastructure - see RTIMULibDrive11 for an example of how to use this.
 
 Note that currently only pressure sensors connected via I2C are supported.  Also, an MS5637 sensor will be auto-detected as an MS5611. To get the correct processing for the MS5637, edit the RTIMULib.ini file and set PressureType=5.
 
