@@ -81,6 +81,11 @@ To build and run the example sketches, start the Teensyduino IDE and use File --
 
 where "..." represents the path to the RTIMULib2-Teensy directory. The directory is set up so that there's no need to copy the libraries into the main Arduino libraries directory although this can be done if desired.
 
+### BitBucketsIMY
+
+This sketch implements IMU for FRC team 4183 to communciate with RoboRIO and transmit data over SPI interface.
+The sketch attempts reporting all data and has ability to turn on/off features. It does not yet have ability to initiate run time calibration for accelerometer and compass. SPI code is not yet implemented but USB-serial communication is used.
+
 ### TeensyMagCal
 
 This sketch can be used to calibrate the magnetometers and should be run before trying to generate fused pose data. It also needs to be rerun at any time that the configuration is changed (such as different IMU or different IMU reference orientation). Load the sketch and waggle the IMU around, making sure all axes reach their minima and maxima. The display will stop updating when this occurs. Then, enter 's' followed by enter into the IDE serial monitor to save the data.
