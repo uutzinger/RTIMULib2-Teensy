@@ -138,54 +138,57 @@ void loop()
 			// this needs to be run several times until it iterates to wards solution
 			// BETA
 			if (autoTune) {
+				if (updateMaxMin) {
+					Serial.println("You need to turn off Update Max/Min for auto tuning");
+				} else {
+					magCal->m_magMaxAutoTune.data(0) = magCal->m_magMax.data(0);
+					magCal->m_magMaxAutoTune.data(1) = magCal->m_magMax.data(1);
+					magCal->m_magMaxAutoTune.data(2) = magCal->m_magMax.data(2);
+					magCal->m_magMinAutoTune.data(0) = magCal->m_magMin.data(0);
+					magCal->m_magMinAutoTune.data(1) = magCal->m_magMin.data(1);
+					magCal->m_magMinAutoTune.data(2) = magCal->m_magMin.data(2);
 
-				magCal->m_magMaxAutoTune.data(0) = magCal->m_magMax.data(0);
-				magCal->m_magMaxAutoTune.data(1) = magCal->m_magMax.data(1);
-				magCal->m_magMaxAutoTune.data(2) = magCal->m_magMax.data(2);
-				magCal->m_magMinAutoTune.data(0) = magCal->m_magMin.data(0);
-				magCal->m_magMinAutoTune.data(1) = magCal->m_magMin.data(1);
-				magCal->m_magMinAutoTune.data(2) = magCal->m_magMin.data(2);
+					RTFLOAT l = compass.length();  // This should be same as FIELDSTRENGTH
+					RTFLOAT c = (FIELDSTRENGTH / l) - (FIELDSTRENGTH / l / l); // adjust calibration values (empirically)
+					
+					if (imuData.compass.x() >= 0)
+						magCal->m_magMaxAutoTune.data(0) = ( (1.0 - compass_ALPHA) * magCal->m_magMaxAutoTune.data(0) + compass_ALPHA * ( 
+						magCal->m_magMaxAutoTune.data(0)* (1.0 + imuData.compass.x() * c) ));
+					else
+						magCal->m_magMinAutoTune.data(0) = ( (1.0 - compass_ALPHA) * magCal->m_magMinAutoTune.data(0) + compass_ALPHA * ( 
+						magCal->m_magMinAutoTune.data(0)* (1.0 + imuData.compass.x() * c) ));
 
-				RTFLOAT l = compass.length();  // This should be same as FIELDSTRENGTH
-				RTFLOAT c = (FIELDSTRENGTH / l) - (FIELDSTRENGTH / l / l); // adjust calibration values (empirically)
-				
-				if (imuData.compass.x() >= 0)
-					magCal->m_magMaxAutoTune.data(0) = ( (1.0 - compass_ALPHA) * magCal->m_magMaxAutoTune.data(0) + compass_ALPHA * ( 
-					magCal->m_magMaxAutoTune.data(0)* (1.0 + imuData.compass.x() * c) ));
-				else
-					magCal->m_magMinAutoTune.data(0) = ( (1.0 - compass_ALPHA) * magCal->m_magMinAutoTune.data(0) + compass_ALPHA * ( 
-					magCal->m_magMinAutoTune.data(0)* (1.0 + imuData.compass.x() * c) ));
+					if (imuData.compass.y() >= 0)
+						magCal->m_magMax.data(1) = ( (1.0 - compass_ALPHA) * magCal->m_magMax.data(1) + compass_ALPHA * ( 
+						magCal->m_magMax.data(1)* (1.0 + imuData.compass.y() * c) ));
+					else
+						magCal->m_magMinAutoTune.data(1) = ( (1.0 - compass_ALPHA) * magCal->m_magMinAutoTune.data(1) + compass_ALPHA * ( 
+						magCal->m_magMinAutoTune.data(1)* (1.0 + imuData.compass.y() * c) ));
 
-				if (imuData.compass.y() >= 0)
-					magCal->m_magMax.data(1) = ( (1.0 - compass_ALPHA) * magCal->m_magMax.data(1) + compass_ALPHA * ( 
-					magCal->m_magMax.data(1)* (1.0 + imuData.compass.y() * c) ));
-				else
-					magCal->m_magMinAutoTune.data(1) = ( (1.0 - compass_ALPHA) * magCal->m_magMinAutoTune.data(1) + compass_ALPHA * ( 
-					magCal->m_magMinAutoTune.data(1)* (1.0 + imuData.compass.y() * c) ));
+					if (imuData.compass.z() >= 0)
+						magCal->m_magMaxAutoTune.data(2) = ( (1.0 - compass_ALPHA) * magCal->m_magMaxAutoTune.data(2) + compass_ALPHA * ( 
+						magCal->m_magMaxAutoTune.data(2)* (1.0 + imuData.compass.z() * c) ));
+					else
+						magCal->m_magMinAutoTune.data(2) = ( (1.0 - compass_ALPHA) * magCal->m_magMinAutoTune.data(2) + compass_ALPHA * ( 
+						magCal->m_magMinAutoTune.data(2)* (1.0 + imuData.compass.z() * c) ));
 
-				if (imuData.compass.z() >= 0)
-					magCal->m_magMaxAutoTune.data(2) = ( (1.0 - compass_ALPHA) * magCal->m_magMaxAutoTune.data(2) + compass_ALPHA * ( 
-					magCal->m_magMaxAutoTune.data(2)* (1.0 + imuData.compass.z() * c) ));
-				else
-					magCal->m_magMinAutoTune.data(2) = ( (1.0 - compass_ALPHA) * magCal->m_magMinAutoTune.data(2) + compass_ALPHA * ( 
-					magCal->m_magMinAutoTune.data(2)* (1.0 + imuData.compass.z() * c) ));
-
-				maxDelta = -1;
-				for (int i = 0; i < 3; i++) {
-				  if ((magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i)) > maxDelta)
-					maxDelta = magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i);
-				}
-				maxDelta /= 2.0f;
-				for (int i = 0; i < 3; i++) {
-				  delta = (magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i)) / 2.0f;
-				  compassCalScaleAutoTune[i] = maxDelta / delta;            // makes everything the same range
-				  compassCalOffsetAutoTune[i] = (magCal->m_magMaxAutoTune.data(i) + magCal->m_magMinAutoTune.data(i)) / 2.0f;
-				}
-				compass.setX((imuData.compass.x() - compassCalOffsetAutoTune[0]) * compassCalScaleAutoTune[0]);
-				compass.setY((imuData.compass.y() - compassCalOffsetAutoTune[1]) * compassCalScaleAutoTune[1]);
-				compass.setZ((imuData.compass.z() - compassCalOffsetAutoTune[2]) * compassCalScaleAutoTune[2]);
-				Serial.println("-Autotune--");
-				Serial.printf("%s", RTMath::displayRadians("Compass Auto Calibrated:", compass));  
+					maxDelta = -1;
+					for (int i = 0; i < 3; i++) {
+					  if ((magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i)) > maxDelta)
+						maxDelta = magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i);
+					}
+					maxDelta /= 2.0f;
+					for (int i = 0; i < 3; i++) {
+					  delta = (magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i)) / 2.0f;
+					  compassCalScaleAutoTune[i] = maxDelta / delta;            // makes everything the same range
+					  compassCalOffsetAutoTune[i] = (magCal->m_magMaxAutoTune.data(i) + magCal->m_magMinAutoTune.data(i)) / 2.0f;
+					}
+					compass.setX((imuData.compass.x() - compassCalOffsetAutoTune[0]) * compassCalScaleAutoTune[0]);
+					compass.setY((imuData.compass.y() - compassCalOffsetAutoTune[1]) * compassCalScaleAutoTune[1]);
+					compass.setZ((imuData.compass.z() - compassCalOffsetAutoTune[2]) * compassCalScaleAutoTune[2]);
+					Serial.println("-Autotune--");
+					Serial.printf("%s", RTMath::displayRadians("Compass Auto Calibrated:", compass));  
+				} // need to have Update Off for Autotune
 			} // autotune
         } // display
     } // imu read
