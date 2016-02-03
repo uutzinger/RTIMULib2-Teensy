@@ -497,13 +497,15 @@ void RTIMU::calibrateAverageCompass()
     m_compassAverage.setZ(m_imuData.compass.z() * COMPASS_ALPHA + m_compassAverage.z() * (1.0 - COMPASS_ALPHA));
 
     m_imuData.compass = m_compassAverage;
+	
 }
 
 void RTIMU::calibrateAccel()
 {
-    if (!getAccelCalibrationValid())
+    if ((getAccelCalibrationValid()==false) && (m_accelCalibrationMode==false) )
         return;
-    
+    // force to go through accel calibration in calibration mode as we use runtime calibration approach
+	
     // printf("%s", RTMath::displayRadians("Accel 1)", m_imuData.accel));
 
     if (m_imuData.accel.x() >= 0)

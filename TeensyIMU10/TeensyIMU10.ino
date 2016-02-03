@@ -21,7 +21,7 @@
 //  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#include <Wire.h>
+//#include <Wire.h>
 #include <SD.h>
 #include <SPI.h>
 #include <EEPROM.h>
@@ -128,8 +128,8 @@ void loop()
             if (pressure->pressureRead(imuData)) {
                 if (imuData.pressureValid)
                     Serial.print(", pressure: "); Serial.print(imuData.pressure);
-                if (imuData.temperatureValid)
-                    Serial.print(", temperature: "); Serial.print(imuData.temperature);
+                if (imuData.IMUtemperatureValid)
+                    Serial.print(", temperature: "); Serial.print(imuData.IMUtemperature);
             }
             Serial.println();
         }

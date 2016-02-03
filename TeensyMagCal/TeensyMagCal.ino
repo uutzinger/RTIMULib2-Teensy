@@ -21,7 +21,7 @@
 //  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE 
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#include <Wire.h>
+//#include <Wire.h>
 #include <SD.h>
 #include <SPI.h>
 #include <EEPROM.h>
@@ -32,7 +32,11 @@
 RTIMU *imu;                                           // the IMU object
 RTIMUSettings *settings;                              // the settings object
 RTIMUMagCal *magCal;                                  // the mag calibration object
+RTIMU_DATA imuData;                                   // IMU Data Structure
 unsigned long lastDisplay;
+float compassCalOffset[3];
+float compassCalScale[3];
+int inByte;
 
 //  SERIAL_PORT_SPEED defines the speed to use for the debug serial port
 
@@ -40,7 +44,7 @@ unsigned long lastDisplay;
 
 //  DISPLAY_INTERVAL sets the rate at which results are displayed
 
-#define DISPLAY_INTERVAL  200                         // interval between min/max displays
+#define DISPLAY_INTERVAL  50                         // interval between min/max displays
 
 void setup()
 {
@@ -73,9 +77,13 @@ void loop()
     unsigned long now = millis();
   
     if (imu->IMURead()) {                                 // get the latest data
-        magCal->newMinMaxData(imu->getIMUData().compass);
+        imuData = imu->getIMUData();
+        magCal->newMinMaxData(imuData.compass);
         if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
             lastDisplay = now;
+            Serial.println("-------");
+            Serial.printf("%s", RTMath::displayRadians("Compass:", imuData.compass));
+            Serial.printf("%s", imuData.motion ? "IMU is moving\n" : "IMU is still \n");  
             Serial.println("-------");
             Serial.print("minX: "); Serial.print(magCal->m_magMin.data(0));
             Serial.print(" maxX: "); Serial.print(magCal->m_magMax.data(0)); Serial.println();
@@ -83,14 +91,36 @@ void loop()
             Serial.print(" maxY: "); Serial.print(magCal->m_magMax.data(1)); Serial.println();
             Serial.print("minZ: "); Serial.print(magCal->m_magMin.data(2));
             Serial.print(" maxZ: "); Serial.print(magCal->m_magMax.data(2)); Serial.println();
+
+            float maxDelta = -1;
+            float delta;
+            for (int i = 0; i < 3; i++) {
+              if ((magCal->m_magMax.data(i) - magCal->m_magMin.data(i)) > maxDelta)
+                maxDelta = magCal->m_magMax.data(i) - magCal->m_magMin.data(i);
+            }
+            maxDelta /= 2.0f;
+            for (int i = 0; i < 3; i++) {
+              delta = (magCal->m_magMax.data(i) - magCal->m_magMin.data(i)) / 2.0f;
+              compassCalScale[i] = maxDelta / delta;            // makes everything the same range
+              compassCalOffset[i] = (magCal->m_magMax.data(i) + magCal->m_magMin.data(i)) / 2.0f;
+            }
+            imuData.compass.setX((imuData.compass.x() - compassCalOffset[0]) * compassCalScale[0]);
+            imuData.compass.setY((imuData.compass.y() - compassCalOffset[1]) * compassCalScale[1]);
+            imuData.compass.setZ((imuData.compass.z() - compassCalOffset[2]) * compassCalScale[2]);
+            Serial.println("-------");
+            Serial.printf("%s", RTMath::displayRadians("Compass Calibrated:", imuData.compass));  
         }
     }
   
     if (Serial.available()) {
-        if (Serial.read() == 's') {                  // save the data
+        inByte = Serial.read(); 
+        if ( inByte == 's') {                  // save the data
             magCal->magCalSaveMinMax();
             Serial.print("Mag cal data saved for device "); Serial.println(imu->IMUName());
-            while(1) ;
         }
+        if ( inByte == 'r') {                  // reset
+            magCal->magCalReset();
+        }
+
     }
 }

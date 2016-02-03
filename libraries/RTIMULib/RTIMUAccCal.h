@@ -22,57 +22,30 @@
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-#include "RTIMUMagCal.h"
+#ifndef _RTIMUACCCAL_H
+#define	_RTIMUACCCAL_H
 
-RTIMUMagCal::RTIMUMagCal(RTIMUSettings *settings)
+#include "RTIMUCalDefs.h"
+#include "RTIMULib.h"
+
+class RTIMUAccCal
 {
-    m_settings = settings;
-}
 
-RTIMUMagCal::~RTIMUMagCal()
-{
-}
+public:
+    RTIMUAccCal(RTIMUSettings *settings);
+    virtual ~RTIMUAccCal();
 
-void RTIMUMagCal::magCalInit()
-{
-    magCalReset();
-}
+    void accCalInit();                                      // inits everything
+    void accCalReset();                                     // clears everything
 
-void RTIMUMagCal::magCalReset()
-{
-    m_magMin = RTVector3(RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN);
-    m_magMax = RTVector3(RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX);
-}
+    // magCalSaveMinMax() saves the current min/max values to settings
+    void accCalSaveMinMax();
 
-void RTIMUMagCal::newMinMaxData(const RTVector3& data)
-{
-    for (int i = 0; i < 3; i++) {
-	    if (m_magMin.data(i) > data.data(i)) {
-		    m_magMin.setData(i, data.data(i));
-	    }
+    // these vars used during the calibration process
 
-	    if (m_magMax.data(i) < data.data(i)) {
-		    m_magMax.setData(i, data.data(i));
-	    }
-    }
-}
+    RTIMUSettings *m_settings;
 
-bool RTIMUMagCal::magCalValid()
-{
-    bool valid = true;
+private:
+};
 
-     for (int i = 0; i < 3; i++) {
-        if (m_magMax.data(i) < m_magMin.data(i))
-            valid = false;
-    }
-    return valid;
-}
-
-void RTIMUMagCal::magCalSaveMinMax()
-{
-    m_settings->m_compassCalValid = true;
-    m_settings->m_compassCalMin = m_magMin;
-    m_settings->m_compassCalMax = m_magMax;
-    m_settings->m_compassCalEllipsoidValid = false;
-    m_settings->saveSettings();
-}
+#endif // _RTIMUACCCAL_H

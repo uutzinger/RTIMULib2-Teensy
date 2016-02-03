@@ -42,6 +42,10 @@
 
 #define RTFUSION_TYPE_COUNT                 4                   // number of fusion algorithm types
 
+#define MAGFIELDNORM 47.118f									// Earths Magnetic Field Strength in Tucson
+#define DECLINATION 9.98f * 3.1415926535f / 180.0f				// Declination in Tucson
+
+
 //  This is a convenience structure that can be used to pass IMU data around
 
 typedef struct

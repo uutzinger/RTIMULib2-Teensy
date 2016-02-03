@@ -59,7 +59,6 @@ void setup()
     Wire.begin();
     settings = new RTIMUSettings();
     // change configurations here if you need to as there is no SD card and therefore no ini file.
-    
     //
     imu = RTIMU::createIMU(settings);                        // create the imu object
 
@@ -125,25 +124,34 @@ void loop()
 
             Serial.print("Sample rate: "); Serial.print(sampleRate);
             if (imu->IMUGyroBiasValid())
-                Serial.println(", gyro bias valid");
+                Serial.print(", gyro bias valid");
             else
-                Serial.println(", calculating gyro bias");
+                Serial.print(", calculating gyro bias");
         
             if (!imu->getCompassCalibrationValid()) {
                 if (imu->getRuntimeCompassCalibrationValid())
-                    Serial.println(", runtime mag cal valid");
+                    Serial.print(", runtime mag cal valid");
                 else     
-                    Serial.println(", runtime mag cal not valid");
+                    Serial.print(", runtime mag cal not valid");
+            } else {
+                Serial.print(", EPROM mag cal valid");
             }
+
+            if (!imu->getAccelCalibrationValid()) {
+                Serial.println(", EPROM acc cal invalid");
+            } else {
+                Serial.println(", EPROM acc cal valid");
+            }
+            
             Serial.print(RTMath::displayRadians("Gyro:", imuData.gyro));       // gyro data
             Serial.print(RTMath::displayRadians("Accel:", imuData.accel));     // accel data
             Serial.print(RTMath::displayRadians("Mag:", imuData.compass));     // compass data
             Serial.print(RTMath::displayDegrees("Pose:", imuData.fusionPose)); // fused output
-            Serial.printf("%x, ", imuData.IMUtemperature);
-            Serial.printf("%x, ", imuData.pressure);
-            Serial.printf("%x, ", imuData.pressureTemperature);
-            Serial.printf("%x, ", imuData.humidity);
-            Serial.printf("%x ", imuData.humidityTemperature);
+            Serial.printf("%f, ", imuData.IMUtemperature);
+            Serial.printf("%f, ", imuData.pressure);
+            Serial.printf("%f, ", imuData.pressureTemperature);
+            Serial.printf("%f, ", imuData.humidity);
+            Serial.printf("%f ",  imuData.humidityTemperature);
             Serial.println(" ");
             if (imuData.motion) { 
               Serial.println("is moving");

@@ -84,7 +84,10 @@ byte systemStatusAUX = B00000000;
 #define STATE_HUMIDITYTEMPVALID  3
 
 // Position Sensing
-float accScale = 9.81;                                       // conversion to 9.81 m/s/s
+const float accScale = 9.81f;                         // conversion to 9.81 m/s/s
+const float magFieldNorm=47.12f;                      // conversion to microT
+float magFieldNormScale =1.0f;                        // to adjust current magnetometer readings
+RTVector3 comp;                                       // to compute earh field strength
 RTVector3 residuals;                                  // gravity subtracted acceleration
 RTVector3 residuals_bias;                             // average acceleration when device is stationary
 RTVector3 residuals_sum;                              // for computing average acceleration
@@ -143,7 +146,17 @@ void setup()
         Serial.println("Using compass calibration");
     else
         Serial.println("No valid compass calibration data");
-		
+
+    if (imu->getAccelCalibrationValid())
+        Serial.println("Using accel calibration");
+    else
+        Serial.println("No valid accel calibration data");
+
+    if (imu->getGyroCalibrationValid())
+        Serial.println("Using gyro calibration");
+    else
+        Serial.println("No valid gyro calibration data");
+
     ////////////////////////////////////////////////////////////////////////////////////////
     //// set up any fusion parameters here
   	////////////////////////////////////////////////////////////////////////////////////////
@@ -151,11 +164,14 @@ void setup()
     imu->setGyroEnable(true);
     imu->setAccelEnable(true);
     imu->setCompassEnable(true);
-	
-	  setBit(fusionStatus, (byte)STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
-	  setBit(fusionStatus, (byte)STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
-	  setBit(fusionStatus, (byte)STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
+    settings->setDeclination(-10.0f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
 
+    //--Fusion
+	  bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
+    bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
+	  bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
+
+	  
 	  // House keeping & Initializing
     lastDisplay = lastRate = lastTimestamp = lastInAvail = micros();
     sampleCount = 0;
@@ -166,12 +182,34 @@ void setup()
   	worldVelocity_previous.zero();
 	  worldVelocity_bias.zero();
 	  heading_avg.clear();
-		accScale = 9.81f; 
 
     gravity.setScalar(0);
     gravity.setX(0);
     gravity.setY(0);
     gravity.setZ(1);
+
+    // dry run of the system
+    int i=0; // dry run
+    while (i < 80) {
+      if  (imu->IMURead()) {
+        i++;
+      }
+    }
+
+    // Compute normalization factor for earts magnetic field
+    comp.zero();
+    i=0;
+    while (i < 50) {
+      if  (imu->IMURead()) {                       // get the latest calibrated data 
+        imuData = imu->getIMUData();
+        comp = comp + imuData.compass;             // get compass
+        i++;
+      }
+    }
+    comp = comp / 50.0f; // compute average compass (devide by 50)
+    magFieldNormScale=magFieldNorm/comp.length();
+
+    Serial.println("Send S to start streaming.");
 }
 
 void loop()
@@ -187,6 +225,12 @@ void loop()
         sampleCount++;
         dt=imuData.timestamp-lastTimestamp;
         lastTimestamp = imuData.timestamp;
+
+        if ((fabs(imuData.compass.length()*magFieldNormScale - magFieldNorm)/magFieldNorm) > 0.19f) {
+          //Magnetic anomaly detected
+          //Probably too late to adjust here as value was already inserted into fusion algorithm
+          //imu->setCompassEnable(false);
+        };
 
         ////////////////////////////////////////////////////////////////////////////////
         // Motion Computations
@@ -277,54 +321,75 @@ void loop()
 		    // Data Reporting
 		    ///////////////////////////////////////////////////////////////
         if (REPORT) {
+            Serial.println("-System--");
             Serial.print("Sample rate: "); Serial.print(sampleRate);
             if (imu->IMUGyroBiasValid())
-                Serial.println(", gyro bias valid");
+                Serial.print(", gyro bias valid");
             else
-                Serial.println(", calculating gyro bias");
+                Serial.print(", calculating gyro bias");
         
             if (!imu->getCompassCalibrationValid()) {
                 if (imu->getRuntimeCompassCalibrationValid())
-                    Serial.println(", runtime mag cal valid");
+                    Serial.print(", runtime mag cal valid");
                 else     
-                    Serial.println(", runtime mag cal not valid");
+                    Serial.print(", runtime mag cal not valid");
+            } else {
+                    Serial.print(", EEPROM mag cal valid");
             }
+
+            if (imu->getAccelCalibrationValid())
+                Serial.println(", accel cal valid");
+            else
+                Serial.println(", no accel cal");
+
+            Serial.println("-Data----");
             Serial.print(RTMath::displayRadians("Gyro:", imuData.gyro));       // gyro data
             Serial.print(RTMath::displayRadians("Accel:", imuData.accel));     // accel data
+            imuData.compass=imuData.compass*magFieldNormScale;                 // compass in uT
             Serial.print(RTMath::displayRadians("Mag:", imuData.compass));     // compass data
             Serial.print(RTMath::displayDegrees("Pose:", imuData.fusionPose)); // fused output
-            
+            Serial.println("-Motion--");
             Serial.print(RTMath::displayRadians("Residuals:", residuals));                    // Residuals in device coordiante system
             Serial.print(RTMath::displayRadians("Residuals Bias:", residuals_bias));          // Residuals bias in device coordiante system
             Serial.print(RTMath::displayRadians("World Residuals:", worldResiduals));         // Residuals in device world coordiante system
             Serial.print(RTMath::displayRadians("World Velocity:", worldVelocity));           // Velocity in world coordiante system
             Serial.print(RTMath::displayRadians("World Velocity Bias:", worldVelocity_bias)); // Velocity bias in world coordiante system
             Serial.print(RTMath::displayRadians("World Position:", worldLocation));           // Location in world coordiante system
-            
+            Serial.println("--Calib--");
             if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
+            Serial.print(RTMath::displayRadians("Acc Max:", settings->m_accelCalMax ));       // 
+            Serial.print(RTMath::displayRadians("Acc Min:", settings->m_accelCalMin ));       // 
+            Serial.print(RTMath::displayRadians("Mag Max:", settings->m_compassCalMax ));       // 
+            Serial.print(RTMath::displayRadians("Mag Min:", settings->m_compassCalMin ));       // 
+            Serial.print(RTMath::displayRadians("Gyro Bias:", settings->m_gyroBias ));       // 
 
-            Serial.printf("IMU_T %x, ", imuData.IMUtemperature);
-            Serial.printf("P %x, ",     imuData.pressure);
-            Serial.printf("P_T%x, ",    imuData.pressureTemperature);
-            Serial.printf("H %x, ",     imuData.humidity);
-            Serial.printf("H_T %x ",    imuData.humidityTemperature);
+            // Serial.println(settings->m_compassAdjDeclination);
+            Serial.println("--Aux----");
+            Serial.printf("IMU_T %f, ", imuData.IMUtemperature);
+            Serial.printf("P %f, ",     imuData.pressure);
+            Serial.printf("P_T %f, ",   imuData.pressureTemperature);
+            Serial.printf("H %f, ",     imuData.humidity);
+            Serial.printf("H_T %f ",    imuData.humidityTemperature);
             Serial.println();
-			
-      			Serial.printf("IMUP:  %b ", getBit(systemStatusIMU, STATE_FUSIONPOSEVALID));
-      			Serial.printf("IMUQP: %b ", getBit(systemStatusIMU, STATE_FUSIONQPOSEVALID));
-      			Serial.printf("IMUG:  %b ", getBit(systemStatusIMU, STATE_GYROVALID));
-      			Serial.printf("IMUA:  %b ", getBit(systemStatusIMU, STATE_ACCELVALID));
-      			Serial.printf("IMUC:  %b ", getBit(systemStatusIMU, STATE_COMPASSVALID));
-      			Serial.printf("IMUT:  %b ", getBit(systemStatusIMU, STATE_IMUTEMPVALID));
+            Serial.println("-Status--");
+
+            IMUStatusUpdate();
+      			Serial.printf("IMUP:  %i ", bitRead(systemStatusIMU, STATE_FUSIONPOSEVALID));
+      			Serial.printf("IMUQP: %i ", bitRead(systemStatusIMU, STATE_FUSIONQPOSEVALID));
+      			Serial.printf("IMUG:  %i ", bitRead(systemStatusIMU, STATE_GYROVALID));
+      			Serial.printf("IMUA:  %i ", bitRead(systemStatusIMU, STATE_ACCELVALID));
+      			Serial.printf("IMUC:  %i ", bitRead(systemStatusIMU, STATE_COMPASSVALID));
+      			Serial.printf("IMUT:  %i ", bitRead(systemStatusIMU, STATE_IMUTEMPVALID));
       			Serial.println();
-      			Serial.printf("AUXP:  %b ", getBit(systemStatusAUX, STATE_PRESSUREVALID));
-      			Serial.printf("AUXPT: %b ", getBit(systemStatusAUX, STATE_PRESSURETEMPVALID));
-      			Serial.printf("AUXH:  %b ", getBit(systemStatusAUX, STATE_HUMIDITYVALID));
-      			Serial.printf("AUXHT: %b ", getBit(systemStatusAUX, STATE_HUMIDITYTEMPVALID));
+      			Serial.printf("AUXP:  %i ", bitRead(systemStatusAUX, STATE_PRESSUREVALID));
+      			Serial.printf("AUXPT: %i ", bitRead(systemStatusAUX, STATE_PRESSURETEMPVALID));
+      			Serial.printf("AUXH:  %i ", bitRead(systemStatusAUX, STATE_HUMIDITYVALID));
+      			Serial.printf("AUXHT: %i ", bitRead(systemStatusAUX, STATE_HUMIDITYTEMPVALID));
       			Serial.println();
-      			Serial.printf("G:     %b ", getBit(fusionStatus, STATE_FUSION_GYROENABLE));
-      			Serial.printf("A:     %b ", getBit(fusionStatus, STATE_FUSION_ACCELENABLE));
-      			Serial.printf("C:     %b ", getBit(fusionStatus, STATE_FUSION_COMPASSENABLE));
+            Serial.println("-Fusion--");
+      			Serial.printf("G:     %i ", bitRead(fusionStatus, STATE_FUSION_GYROENABLE));
+      			Serial.printf("A:     %i ", bitRead(fusionStatus, STATE_FUSION_ACCELENABLE));
+      			Serial.printf("C:     %i ", bitRead(fusionStatus, STATE_FUSION_COMPASSENABLE));
       			Serial.println();
 
         } // report
@@ -339,38 +404,26 @@ void loop()
   			// ENABLE/DISABLE FUSION ALGORITHM INPUTS
   			if (inByte == 'm') {      // turn off Compass Fusion
   				imu->setCompassEnable(false);;
-  				setBit(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
+  				bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
   			} else if (inByte == 'M') { // turn on  Compass Fusion
   				imu->setCompassEnable(true);
-  				setBit(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
+  				bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
   			} else if (inByte == 'a') {      // turn off Accelerometer Fusion
   				imu->setAccelEnable(false);
-  				setBit(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
+  				bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
   			} else if (inByte == 'A') { // turn on Accelerometer Fusion
   				imu->setAccelEnable(true);
-  				setBit(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
+  				bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
   			} else if (inByte == 'g') {      // turn off Gyroscope Fusion
   				imu->setGyroEnable(false);
-  				setBit(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
+  				bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
   			} else if (inByte == 'G') { // turn on Gyroscope Fusion
   				imu->setGyroEnable(true);
-  				setBit(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
+  				bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
   			} else if (inByte == 's') { // turn off streaming
   				STREAM=false;
   			} else if (inByte == 'S') { // turn on  streaming
   				STREAM=true;
-  			} else if (inByte == 'K') {
-  				//calibrateCompass(); 
-  				// Needs to be written to enable auto calibration and override EEPROM settings
-  			} else if (inByte == 'k') {
-  				//Save and Stop Compass Calibration(); 
-  				// Needs to be written to stop and save calibration to EEPROM
-  			} else if (inByte == 'C') {
-  				//calibrateAccel());  
-  				// Needs to be written to enable accel calibration during no motion
-  			} else if (inByte == 'c') {
-  				//save and stop accel calibration());  
-  				// Needs to be written to stop accel calibration and save data
   			} else if (inByte == 'R') { // send raw
   				HEXsendRAW();
   			} else if (inByte == 'r') { // send residuals
@@ -400,24 +453,27 @@ void loop()
 
 // REPORTING OF VARIABLES
 
-void HEXsendIMUStatus(){
-	// System Status
-	systemStatusIMU = B00000000;
-	systemStatusAUX = B00000000;
-
+void IMUStatusUpdate(){
+    //--FUSION
+    bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
+    bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
+    bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
     //--IMU
-	if (imuData.fusionPoseValid) { setBit(systemStatusIMU, STATE_FUSIONPOSEVALID, true); }
-	if (imuData.fusionQPoseValid) { setBit(systemStatusIMU, STATE_FUSIONQPOSEVALID, true); }
-	if (imuData.gyroValid) { setBit(systemStatusIMU, STATE_GYROVALID, true); }
-	if (imuData.accelValid) { setBit(systemStatusIMU, STATE_ACCELVALID, true); }
-	if (imuData.accelValid) { setBit(systemStatusIMU, STATE_COMPASSVALID, true); }
-	if (imuData.IMUtemperatureValid) { setBit(systemStatusIMU, STATE_IMUTEMPVALID, true); }
+    bitWrite(systemStatusIMU, STATE_FUSIONPOSEVALID, imuData.fusionPoseValid);
+    bitWrite(systemStatusIMU, STATE_FUSIONQPOSEVALID, imuData.fusionQPoseValid);
+    bitWrite(systemStatusIMU, STATE_GYROVALID, imuData.gyroValid); 
+    bitWrite(systemStatusIMU, STATE_ACCELVALID, imuData.accelValid); 
+    bitWrite(systemStatusIMU, STATE_COMPASSVALID, imuData.compassValid); 
+    bitWrite(systemStatusIMU, STATE_IMUTEMPVALID, imuData.IMUtemperatureValid);
     //--Aux
-	if (imuData.pressureValid) { setBit(systemStatusAUX, STATE_PRESSUREVALID, true); }
-	if (imuData.pressureTemperatureValid) { setBit(systemStatusAUX, STATE_PRESSURETEMPVALID, true); }
-	if (imuData.humidityValid) { setBit(systemStatusAUX, STATE_HUMIDITYVALID, true); }
-	if (imuData.humidityTemperatureValid) { setBit(systemStatusAUX, STATE_HUMIDITYTEMPVALID, true); }
+    bitWrite(systemStatusAUX, STATE_PRESSUREVALID, imuData.pressureValid);
+    bitWrite(systemStatusAUX, STATE_PRESSURETEMPVALID, imuData.pressureTemperatureValid); 
+    bitWrite(systemStatusAUX, STATE_HUMIDITYVALID, imuData.humidityValid); 
+    bitWrite(systemStatusAUX, STATE_HUMIDITYTEMPVALID, imuData.humidityTemperatureValid); 
+}
 
+void HEXsendIMUStatus(){
+  IMUStatusUpdate();
 	serialBytePrint(systemStatusIMU); Serial.print(',');
 	serialBytePrint(systemStatusAUX); Serial.print(',');
 }
@@ -512,19 +568,4 @@ void serialBytePrint(byte b) {
     Serial.print(c2);
 }
 
-boolean getBit(byte myVarIn, byte whatBit) {
-  boolean bitState;
-  bitState = myVarIn & (1 << whatBit);
-  return bitState;
-}
-
-byte setBit(byte myVarIn, byte whatBit, boolean s) {
-  if (s) {
-    myVarIn = myVarIn | (1 << whatBit);
-  } 
-  else {
-    myVarIn = myVarIn & ~(1 << whatBit);
-  }
-  return myVarIn;
-}
 

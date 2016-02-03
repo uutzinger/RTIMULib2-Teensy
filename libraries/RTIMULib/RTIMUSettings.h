@@ -46,9 +46,18 @@ typedef struct
     unsigned char validL;                                   // should contain the valid pattern if a good config
     unsigned char validH;                                   // should contain the valid pattern if a good config
     unsigned char magValid;                                 // true if data valid
-    unsigned char pad;
+	unsigned char pad1;
     RTFLOAT magMin[3];                                      // min values
     RTFLOAT magMax[3];                                      // max values
+    unsigned char accValid;                                 // true if data valid
+	unsigned char pad2;
+    RTFLOAT accMin[3];                                      // min values
+    RTFLOAT accMax[3];                                      // max values
+	unsigned char gyrValid;                                 // ture if data valid
+    unsigned char pad3;
+	RTFLOAT gyrBias[3];                                     // gyroscope bias values
+	RTFLOAT gyrDummy[3];                                    // to make even EEPROM entries
+	// not sure why there was a pad, I assume we want even number of bytes going to EEPROM?
 } RTIMULIB_CAL_DATA;
 
 //  Settings keys for SD card based  config
@@ -165,7 +174,7 @@ typedef struct
 
 #define RTIMULIB_BMX055_MAG_PRESET          "BMX055MagPreset"
 
-// Temperatur Bias
+// Temperature Bias
 #define RTIMULIB_TEMP_BREAK                 "senTemp_break"
 #define RTIMULIB_TEMPCAL_VALID              "TemperatureCalValid"
 #define RTIMULIB_TEMPCAL_C3_0               "c3_0"
@@ -330,7 +339,9 @@ public:
     float m_compassCalEllipsoidCorr[3][3];                  // the correction matrix
 
     float m_compassAdjDeclination;                          // magnetic declination adjustment - subtracted from measured
-
+    void  setDeclination(float declination) { m_compassAdjDeclination = declination;}
+    const float getDeclination() { return m_compassAdjDeclination;}
+	
     bool m_accelCalValid;                                   // true if there is valid accel calibration data
     RTVector3 m_accelCalMin;                                // the minimum values
     RTVector3 m_accelCalMax;                                // the maximum values

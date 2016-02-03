@@ -57,7 +57,7 @@ RTIMUSettings::RTIMUSettings(const char *productType)
     }
     pinMode(SD_CHIP_SELECT, OUTPUT);
     if (!SD.begin(SD_CHIP_SELECT)) {
-        Serial.println("SD card not found - using EEPROM mag calibration settings");
+        Serial.println("SD card not found - using EEPROM calibration settings");
         m_usingSD = false;
     } else {
         Serial.println("Using SD card for settings");
@@ -485,7 +485,7 @@ void RTIMUSettings::setDefaults()
     m_compassCalEllipsoidCorr[1][1] = 1;
     m_compassCalEllipsoidCorr[2][2] = 1;
 
-    m_compassAdjDeclination = 0.0;
+    m_compassAdjDeclination = DECLINATION;
 
     m_accelCalValid = false;
     m_accelCalEllipsoidValid = false;
@@ -512,10 +512,10 @@ void RTIMUSettings::setDefaults()
 
     m_MPU9250GyroAccelSampleRate = 80;
     m_MPU9250CompassSampleRate = 40;
-    m_MPU9250GyroLpf = MPU9250_GYRO_LPF_41;
-    m_MPU9250AccelLpf = MPU9250_ACCEL_LPF_41;
-    m_MPU9250GyroFsr = MPU9250_GYROFSR_1000;
-    m_MPU9250AccelFsr = MPU9250_ACCELFSR_8;
+    m_MPU9250GyroLpf = MPU9250_GYRO_LPF_41;    // 41Hz Lowpass
+    m_MPU9250AccelLpf = MPU9250_ACCEL_LPF_41;  // 41Hz Lowpass
+    m_MPU9250GyroFsr = MPU9250_GYROFSR_1000;   // +/- 1000 deg/sec
+    m_MPU9250AccelFsr = MPU9250_ACCELFSR_8;    // +/- 8g
 
     //  GD20HM303D defaults
 
@@ -618,13 +618,45 @@ bool RTIMUSettings::loadSettings()
         } else {
             return true;
         }
-        m_compassCalValid = true;
-        m_compassCalMin.setX(calData.magMin[0]);
-        m_compassCalMin.setY(calData.magMin[1]);
-        m_compassCalMin.setZ(calData.magMin[2]);
-        m_compassCalMax.setX(calData.magMax[0]);
-        m_compassCalMax.setY(calData.magMax[1]);
-        m_compassCalMax.setZ(calData.magMax[2]);
+		if (calData.magValid == true) {
+			m_compassCalValid = true;
+			m_compassCalMin.setX(calData.magMin[0]);
+			m_compassCalMin.setY(calData.magMin[1]);
+			m_compassCalMin.setZ(calData.magMin[2]);
+			m_compassCalMax.setX(calData.magMax[0]);
+			m_compassCalMax.setY(calData.magMax[1]);
+			m_compassCalMax.setZ(calData.magMax[2]);
+		} else {
+			m_compassCalValid = false;
+		}
+		if (calData.accValid == true) {
+			m_accelCalValid = true;
+			if (calData.accMin[0]<0.0f) {m_accelCalMin.setX(calData.accMin[0]);} else { m_accelCalMin.setX(-1.0f); }
+			if (calData.accMin[1]<0.0f) {m_accelCalMin.setY(calData.accMin[1]);} else { m_accelCalMin.setY(-1.0f); }
+			if (calData.accMin[2]<0.0f) {m_accelCalMin.setZ(calData.accMin[2]);} else { m_accelCalMin.setZ(-1.0f); }
+			if (calData.accMax[0]>0.0f) {m_accelCalMax.setX(calData.accMax[0]);} else { m_accelCalMax.setX(1.0f); }
+			if (calData.accMax[1]>0.0f) {m_accelCalMax.setY(calData.accMax[1]);} else { m_accelCalMax.setY(1.0f); }
+			if (calData.accMax[2]>0.0f) {m_accelCalMax.setZ(calData.accMax[2]);} else { m_accelCalMax.setZ(1.0f); }
+		} else {
+			m_accelCalValid = false;
+			m_accelCalMin.setX(-1.0f);
+			m_accelCalMin.setY(-1.0f);
+			m_accelCalMin.setZ(-1.0f);
+			m_accelCalMax.setX(1.0f);
+			m_accelCalMax.setY(1.0f);
+			m_accelCalMax.setZ(1.0f);
+		}
+		if (calData.gyrValid == true) {
+			m_gyroBiasValid = true;
+			m_gyroBias.setX(calData.gyrBias[0]);   
+			m_gyroBias.setY(calData.gyrBias[1]);   
+			m_gyroBias.setZ(calData.gyrBias[2]);
+		} else {
+			m_gyroBiasValid = false;
+			m_gyroBias.setX(0.0f);   
+			m_gyroBias.setY(0.0f);   
+			m_gyroBias.setZ(0.0f);
+		}			
         return true;
     }
 
@@ -1127,6 +1159,19 @@ bool RTIMUSettings::saveSettings()
         calData.magMax[1] = m_compassCalMax.y();
         calData.magMax[2] = m_compassCalMax.z();
 
+        calData.accValid = m_accelCalValid;
+        calData.accMin[0] = m_accelCalMin.x();
+        calData.accMin[1] = m_accelCalMin.y();
+        calData.accMin[2] = m_accelCalMin.z();
+        calData.accMax[0] = m_accelCalMax.x();
+        calData.accMax[1] = m_accelCalMax.y();
+        calData.accMax[2] = m_accelCalMax.z();
+		
+		calData.gyrValid  = m_gyroBiasValid;
+		calData.gyrBias[0] = m_gyroBias.x();   
+		calData.gyrBias[1] = m_gyroBias.y();   
+		calData.gyrBias[2] = m_gyroBias.z();   
+		
         EEWrite(0, &calData);
         return true;
     }

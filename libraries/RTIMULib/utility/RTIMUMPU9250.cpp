@@ -369,7 +369,7 @@ bool RTIMUMPU9250::resetFifo()
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_INT_ENABLE, 1, "Writing int enable"))
         return false; // enable FIFO interrupt (but do not enable FIFO overflow, ic2 master, motion interrupt)
 
-    //    TEMP, XG, YG, ZG, ACCEL, SLV2, SLV1, SLV0
+    //    TEMP, XG, YG, ZG, ACCEL, SLV2, SLV1, SLV0(compass)
     // f9 1     1   1   1   1      0     0     1
     // f8 1     1   1   1   1      0     0     0
     // 79 0     1   1   1   1      0     0     1
@@ -760,12 +760,50 @@ bool RTIMUMPU9250::IMURead()
 	
 #endif
 
+
+   
+   // Accelerometer
+    RTMath::convertToVector(fifoData, m_imuData.accel, m_accelScale, true);
+
+    #if MPU9250_FIFO_WITH_TEMP == 1
+        // Temperature
+       
+        m_imuData.IMUtemperature =  ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f;  // combined registers and convert to temperature
+        m_imuData.IMUtemperatureValid = true;
+        // Gyroscope
+        RTMath::convertToVector(fifoData + 8, m_imuData.gyro, m_gyroScale, true);
+		// RTMath::convertToVector(fifoData + 6, m_imuData.gyro, m_gyroScale, true);
+         // Compass
+        #if MPU9250_FIFO_WITH_COMPASS == 1
+			RTMath::convertToVector(fifoData + 14 + 1, m_imuData.compass, 0.6f, false);
+        #else
+			RTMath::convertToVector(compassData + 1, m_imuData.compass, 0.6f, false);
+		#endif
+    #else // no temp in fifo
+	    // Temperature
+        m_imuData.IMUtemperature = ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f; // combined registers and convert to temperature
+        m_imuData.IMUtemperatureValid = true;
+		// ((TEMP_OUT – RoomTemp_Offset)/Temp_Sensitivity) + 21degC
+		// 333.87 = sensitivity
+		// 0 = room temp offset at 21
+        // Gyroscope
+        RTMath::convertToVector(fifoData + 6, m_imuData.gyro, m_gyroScale, true);
+
+		// Compass
+		#if MPU9250_FIFO_WITH_COMPASS == 1 // without temp but with compass in FIFO
+            RTMath::convertToVector(fifoData + 12 + 1, m_imuData.compass, 0.6f, false);
+        #else
+            RTMath::convertToVector(compassData + 1, m_imuData.compass, 0.6f, false);
+        #endif
+	#endif
+ 
     // FIFO contains data from register 59 up to register 96 in that order
     // (given sensor path was reset, otherwise the data order is not correct)
     // ACC (6), TEMP(2), GYRO(6), EXT SENS(8, up to 24))
 
     // Debug
-    /* Serial.print("FIFO: ");
+	/*
+    Serial.print("FIFO: ");
     for (unsigned int i=0; i < MPU9250_FIFO_CHUNK_SIZE; i++) {
         Serial.printf("%x, ", fifoData[i] ); }
     #if MPU9250_FIFO_WITH_COMPASS == 0
@@ -777,43 +815,13 @@ bool RTIMUMPU9250::IMURead()
         Serial.print("Temperature: ");
         Serial.printf("%x, ", temperatureData[0] );
         Serial.printf("%x, ", temperatureData[1] );
-   #endif
-   Serial.print("\n");
-   */
-   
-   // Accelerometer
-    RTMath::convertToVector(fifoData, m_imuData.accel, m_accelScale, true);
-
-    #if MPU9250_FIFO_WITH_TEMP == 1
-        // Temperature
-        m_imuData.IMUtemperature =  (RTFLOAT) ((int16_t)( ((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7] )) -512.0f / 340.0f;  // combined registers and convert to temperature
-        // m_imuData.IMUtemperature = ( (RTFLOAT)(((uint16_t)fifoData[12] << 8) | (uint16_t)fifoData[13]) - 521.0 ) / 340.0; // combined registers and convert to temperature
-        m_imuData.IMUtemperatureValid = true;
-        // Gyroscope
-        RTMath::convertToVector(fifoData + 8, m_imuData.gyro, m_gyroScale, true);
-		// RTMath::convertToVector(fifoData + 6, m_imuData.gyro, m_gyroScale, true);
-         // Compass
-        #if MPU9250_FIFO_WITH_COMPASS == 1
-        RTMath::convertToVector(fifoData + 14 + 1, m_imuData.compass, 0.6f, false);
-        #else
-		RTMath::convertToVector(compassData + 1, m_imuData.compass, 0.6f, false);
-		#endif
-    #else // no temp in fifo
-	    // Temperature
-        m_imuData.IMUtemperature = ( (RTFLOAT)(((uint16_t)temperatureData[0] << 8) | (uint16_t)temperatureData[1]) - 521.0f ) / 340.0; // combined registers and convert to temperature
-        m_imuData.IMUtemperatureValid = true;
-        // Gyroscope
-        RTMath::convertToVector(fifoData + 6, m_imuData.gyro, m_gyroScale, true);
-
-		// Compass
-		#if MPU9250_FIFO_WITH_COMPASS == 1 // without temp but with compass in FIFO
-            RTMath::convertToVector(fifoData + 12 + 1, m_imuData.compass, 0.6f, false);
-        #else
-            RTMath::convertToVector(compassData + 1, m_imuData.compass, 0.6f, false);
-        #endif
-		
 	#endif
- 	
+	Serial.print("\n");
+	Serial.printf("T valid %x \n", m_imuData.IMUtemperatureValid);
+	Serial.printf("T %i \n", (int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7]));
+	float TEMP_OUT = (float)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7]));
+	Serial.printf("T %f \n", (TEMP_OUT/333.87f)+21.0f);
+	*/
     //  sort out gyro axes
 
     m_imuData.gyro.setX(m_imuData.gyro.x());

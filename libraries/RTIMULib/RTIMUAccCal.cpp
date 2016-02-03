@@ -22,57 +22,37 @@
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-#include "RTIMUMagCal.h"
+#include "RTIMUAccCal.h"
 
-RTIMUMagCal::RTIMUMagCal(RTIMUSettings *settings)
+RTIMUAccCal::RTIMUAccCal(RTIMUSettings *settings)
 {
     m_settings = settings;
 }
 
-RTIMUMagCal::~RTIMUMagCal()
+RTIMUAccCal::~RTIMUAccCal()
 {
 }
 
-void RTIMUMagCal::magCalInit()
+void RTIMUAccCal::accCalInit()
 {
-    magCalReset();
+    accCalReset();
 }
 
-void RTIMUMagCal::magCalReset()
+void RTIMUAccCal::accCalReset()
 {
-    m_magMin = RTVector3(RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN);
-    m_magMax = RTVector3(RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX);
+  if (m_settings->m_accelCalValid == false) {
+	m_settings->m_accelCalMax.setX(1.0f);
+	m_settings->m_accelCalMax.setY(1.0f);
+	m_settings->m_accelCalMax.setZ(1.0f);
+	m_settings->m_accelCalMin.setX(-1.0f);
+	m_settings->m_accelCalMin.setY(-1.0f);
+	m_settings->m_accelCalMin.setZ(-1.0f);
+  }
 }
 
-void RTIMUMagCal::newMinMaxData(const RTVector3& data)
+void RTIMUAccCal::accCalSaveMinMax()
 {
-    for (int i = 0; i < 3; i++) {
-	    if (m_magMin.data(i) > data.data(i)) {
-		    m_magMin.setData(i, data.data(i));
-	    }
-
-	    if (m_magMax.data(i) < data.data(i)) {
-		    m_magMax.setData(i, data.data(i));
-	    }
-    }
-}
-
-bool RTIMUMagCal::magCalValid()
-{
-    bool valid = true;
-
-     for (int i = 0; i < 3; i++) {
-        if (m_magMax.data(i) < m_magMin.data(i))
-            valid = false;
-    }
-    return valid;
-}
-
-void RTIMUMagCal::magCalSaveMinMax()
-{
-    m_settings->m_compassCalValid = true;
-    m_settings->m_compassCalMin = m_magMin;
-    m_settings->m_compassCalMax = m_magMax;
-    m_settings->m_compassCalEllipsoidValid = false;
+    m_settings->m_accelCalValid = true;
+    m_settings->m_accelCalEllipsoidValid = false;
     m_settings->saveSettings();
 }

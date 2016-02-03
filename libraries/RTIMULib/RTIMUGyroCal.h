@@ -22,57 +22,33 @@
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 
-#include "RTIMUMagCal.h"
+#ifndef _RTIMUGYROCAL_H
+#define	_RTIMUGYROCAL_H
 
-RTIMUMagCal::RTIMUMagCal(RTIMUSettings *settings)
+#include "RTIMUCalDefs.h"
+#include "RTIMULib.h"
+
+class RTIMUGyroCal
 {
-    m_settings = settings;
-}
 
-RTIMUMagCal::~RTIMUMagCal()
-{
-}
+public:
+    RTIMUGyroCal(RTIMUSettings *settings);
+    virtual ~RTIMUGyroCal();
 
-void RTIMUMagCal::magCalInit()
-{
-    magCalReset();
-}
+    void gyroCalInit();                                      // inits everything
+    void gyroCalReset();                                     // clears everything
 
-void RTIMUMagCal::magCalReset()
-{
-    m_magMin = RTVector3(RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN);
-    m_magMax = RTVector3(RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX);
-}
+    // magCalValid() determines if the min/max data is basically valid
+    bool gyroCalValid();
 
-void RTIMUMagCal::newMinMaxData(const RTVector3& data)
-{
-    for (int i = 0; i < 3; i++) {
-	    if (m_magMin.data(i) > data.data(i)) {
-		    m_magMin.setData(i, data.data(i));
-	    }
+    // magCalSaveMinMax() saves the current min/max values to settings
+    void gyroCalSaveBias();
 
-	    if (m_magMax.data(i) < data.data(i)) {
-		    m_magMax.setData(i, data.data(i));
-	    }
-    }
-}
+    // these vars used during the calibration process
 
-bool RTIMUMagCal::magCalValid()
-{
-    bool valid = true;
+    RTIMUSettings *m_settings;
 
-     for (int i = 0; i < 3; i++) {
-        if (m_magMax.data(i) < m_magMin.data(i))
-            valid = false;
-    }
-    return valid;
-}
+private:
+};
 
-void RTIMUMagCal::magCalSaveMinMax()
-{
-    m_settings->m_compassCalValid = true;
-    m_settings->m_compassCalMin = m_magMin;
-    m_settings->m_compassCalMax = m_magMax;
-    m_settings->m_compassCalEllipsoidValid = false;
-    m_settings->saveSettings();
-}
+#endif // _RTIMUGYROCAL_H
