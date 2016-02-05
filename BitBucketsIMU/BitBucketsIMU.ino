@@ -37,8 +37,8 @@ RTIMUSettings *settings;                              // the settings object
 RTIMU_DATA imuData;                                   // IMU Data Structure
 
 //  DISPLAY_INTERVAL sets the rate at which results are transferred to host
-#define DISPLAY_INTERVAL      35000                   // interval in microseconds between data updates over serial port: 100000=10Hz, Fusion update is 50Hz (20000), lowpass is 40Hz
-#define CHECKINPUT_INTERVAL   35000                   // 35000 will result in 40ms update time
+#define DISPLAY_INTERVAL      100                   // interval in microseconds between data updates over serial port: 100000=10Hz, Fusion update is 80Hz, lowpass is 40Hz
+#define CHECKINPUT_INTERVAL   50000                   // 35000 will result in 40ms update time
 
 //  SERIAL_PORT_SPEED defines the speed to use for the debug serial port
 #define  SERIAL_PORT_SPEED  250000
@@ -57,6 +57,7 @@ int sampleRate;
 bool REPORT=false;                                    // do we need to produce output data?
 bool STREAM=false;                                    // are we continously streaming output?
 bool INAVAIL=false;                                   // do we need to check for input ?
+bool VERBOSE=false;                                   // set HEX mode
 int  inByte = 0;                                      // serial input buffer, one byte
 
 // Fusion Status
@@ -66,6 +67,7 @@ float slerpPower = 0.02;                             // Fusion convergence
 #define STATE_FUSION_GYROENABLE    0                  // Use Gyroscope for Fusion
 #define STATE_FUSION_COMPASSENABLE 1                  // Use Compass for Fusion
 #define STATE_FUSION_ACCELENABLE   2                  // Use Accelerator for Fusion
+#define STATE_FUSION_MOVING        7                  // System is moving
 
 // IMU Status
 byte systemStatusIMU = B00000000;
@@ -165,13 +167,13 @@ void setup()
     imu->setAccelEnable(true);
     imu->setCompassEnable(true);
     settings->setDeclination(-10.0f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
-
+    
     //--Fusion
 	  bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
     bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
 	  bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
+    bitWrite(fusionStatus, STATE_FUSION_MOVING,        false );
 
-	  
 	  // House keeping & Initializing
     lastDisplay = lastRate = lastTimestamp = lastInAvail = micros();
     sampleCount = 0;
@@ -225,6 +227,8 @@ void loop()
         sampleCount++;
         dt=imuData.timestamp-lastTimestamp;
         lastTimestamp = imuData.timestamp;
+
+        bitWrite(fusionStatus, STATE_FUSION_MOVING, imuData.motion); // update moving reporting
 
         if ((fabs(imuData.compass.length()*magFieldNormScale - magFieldNorm)/magFieldNorm) > 0.19f) {
           //Magnetic anomaly detected
@@ -321,6 +325,8 @@ void loop()
 		    // Data Reporting
 		    ///////////////////////////////////////////////////////////////
         if (REPORT) {
+          if (VERBOSE) {
+            // now=micros();
             Serial.println("-System--");
             Serial.print("Sample rate: "); Serial.print(sampleRate);
             if (imu->IMUGyroBiasValid())
@@ -348,13 +354,6 @@ void loop()
             imuData.compass=imuData.compass*magFieldNormScale;                 // compass in uT
             Serial.print(RTMath::displayRadians("Mag:", imuData.compass));     // compass data
             Serial.print(RTMath::displayDegrees("Pose:", imuData.fusionPose)); // fused output
-            Serial.println("-Motion--");
-            Serial.print(RTMath::displayRadians("Residuals:", residuals));                    // Residuals in device coordiante system
-            Serial.print(RTMath::displayRadians("Residuals Bias:", residuals_bias));          // Residuals bias in device coordiante system
-            Serial.print(RTMath::displayRadians("World Residuals:", worldResiduals));         // Residuals in device world coordiante system
-            Serial.print(RTMath::displayRadians("World Velocity:", worldVelocity));           // Velocity in world coordiante system
-            Serial.print(RTMath::displayRadians("World Velocity Bias:", worldVelocity_bias)); // Velocity bias in world coordiante system
-            Serial.print(RTMath::displayRadians("World Position:", worldLocation));           // Location in world coordiante system
             Serial.println("--Calib--");
             if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
             Serial.print(RTMath::displayRadians("Acc Max:", settings->m_accelCalMax ));       // 
@@ -362,17 +361,15 @@ void loop()
             Serial.print(RTMath::displayRadians("Mag Max:", settings->m_compassCalMax ));       // 
             Serial.print(RTMath::displayRadians("Mag Min:", settings->m_compassCalMin ));       // 
             Serial.print(RTMath::displayRadians("Gyro Bias:", settings->m_gyroBias ));       // 
-
             // Serial.println(settings->m_compassAdjDeclination);
             Serial.println("--Aux----");
-            Serial.printf("IMU_T %f, ", imuData.IMUtemperature);
-            Serial.printf("P %f, ",     imuData.pressure);
-            Serial.printf("P_T %f, ",   imuData.pressureTemperature);
-            Serial.printf("H %f, ",     imuData.humidity);
-            Serial.printf("H_T %f ",    imuData.humidityTemperature);
+            Serial.printf("IMU_T %+4.2f, ", imuData.IMUtemperature);
+            Serial.printf("P %+4.2f, ",     imuData.pressure);
+            Serial.printf("P_T %+4.2f, ",   imuData.pressureTemperature);
+            Serial.printf("H %+4.2f, ",     imuData.humidity);
+            Serial.printf("H_T %+4.2f ",    imuData.humidityTemperature);
             Serial.println();
             Serial.println("-Status--");
-
             IMUStatusUpdate();
       			Serial.printf("IMUP:  %i ", bitRead(systemStatusIMU, STATE_FUSIONPOSEVALID));
       			Serial.printf("IMUQP: %i ", bitRead(systemStatusIMU, STATE_FUSIONQPOSEVALID));
@@ -391,7 +388,19 @@ void loop()
       			Serial.printf("A:     %i ", bitRead(fusionStatus, STATE_FUSION_ACCELENABLE));
       			Serial.printf("C:     %i ", bitRead(fusionStatus, STATE_FUSION_COMPASSENABLE));
       			Serial.println();
-
+            Serial.println("-Motion--");
+            Serial.print(RTMath::displayRadians("Residuals:", residuals));                    // Residuals in device coordiante system
+            Serial.print(RTMath::displayRadians("Residuals Bias:", residuals_bias));          // Residuals bias in device coordiante system
+            Serial.print(RTMath::displayRadians("World Residuals:", worldResiduals));         // Residuals in device world coordiante system
+            Serial.print(RTMath::displayRadians("World Velocity:", worldVelocity));           // Velocity in world coordiante system
+            Serial.print(RTMath::displayRadians("World Velocity Bias:", worldVelocity_bias)); // Velocity bias in world coordiante system
+            Serial.print(RTMath::displayRadians("World Position:", worldLocation));           // Location in world coordiante system
+            // Serial.println((micros()-now)); // takes about 4ms to send the data
+            Serial.println(); 
+          } else {
+            BitBucketsUpdate();
+          } // ASCII
+  
         } // report
     } // imuread
 	
@@ -402,7 +411,7 @@ void loop()
   		if (Serial.available()) {
   			inByte=Serial.read();
   			// ENABLE/DISABLE FUSION ALGORITHM INPUTS
-  			if (inByte == 'm') {      // turn off Compass Fusion
+  			if        (inByte == 'm') {      // turn off Compass Fusion
   				imu->setCompassEnable(false);;
   				bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
   			} else if (inByte == 'M') { // turn on  Compass Fusion
@@ -432,7 +441,7 @@ void loop()
   				HEXsendE();
   			} else if (inByte == 'q') { // send Quaternion
   				HEXsendQ();
-  			} else if (inByte == 'h') { // send residuals
+  			} else if (inByte == 'h') { // send Heading
   				HEXsendH();
   			} else if (inByte == 'p') { // send location
   				HEXsendWP();
@@ -440,6 +449,10 @@ void loop()
   				HEXsendWV();
   			} else if (inByte == 'P') { // reset position
   				worldLocation.zero();
+        } else if (inByte == 'V') { // send verbose
+          VERBOSE=true;
+        } else if (inByte == 'v') { // send HEX
+          VERBOSE=false;
   			} else if (inByte == '?') { // send STATE information
   				HEXsendIMUStatus();
   				HEXsendFusionStatus();
@@ -470,6 +483,15 @@ void IMUStatusUpdate(){
     bitWrite(systemStatusAUX, STATE_PRESSURETEMPVALID, imuData.pressureTemperatureValid); 
     bitWrite(systemStatusAUX, STATE_HUMIDITYVALID, imuData.humidityValid); 
     bitWrite(systemStatusAUX, STATE_HUMIDITYTEMPVALID, imuData.humidityTemperatureValid); 
+}
+
+void BitBucketsUpdate(){
+    serialLongPrint(imuData.timestamp); Serial.print(',');
+    serialBytePrint(fusionStatus); Serial.print(',');
+    serialFloatPrint(imuData.fusionPose.x()); Serial.print(',');
+    serialFloatPrint(imuData.fusionPose.y()); Serial.print(',');
+    serialFloatPrint(imuData.fusionPose.z()); Serial.print(',');
+    Serial.println();
 }
 
 void HEXsendIMUStatus(){
@@ -566,6 +588,22 @@ void serialBytePrint(byte b) {
     
     Serial.print(c1);
     Serial.print(c2);
+}
+
+// CONVERT Byte TO HEX AND SEND OVER SERIAL PORT
+void serialLongPrint(unsigned long l) {
+  byte * b = (byte *) &l;
+  for(int i=0; i<4; i++) {
+    
+    byte b1 = (b[i] >> 4) & 0x0f;
+    byte b2 = (b[i] & 0x0f);
+    
+    char c1 = (b1 < 10) ? ('0' + b1) : 'A' + b1 - 10;
+    char c2 = (b2 < 10) ? ('0' + b2) : 'A' + b2 - 10;
+    
+    Serial.print(c1);
+    Serial.print(c2);
+  }
 }
 
 

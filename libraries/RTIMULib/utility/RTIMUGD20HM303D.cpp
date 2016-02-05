@@ -53,7 +53,7 @@ bool RTIMUGD20HM303D::IMUInit()
     m_imuData.gyroValid = true;
     m_imuData.accelValid = true;
     m_imuData.compassValid = true;
-    m_imuData.motion = false;
+    m_imuData.motion = true;
     m_imuData.IMUtemperatureValid = false;
     m_imuData.IMUtemperature = 0.0;
     m_imuData.humidityValid = false;
