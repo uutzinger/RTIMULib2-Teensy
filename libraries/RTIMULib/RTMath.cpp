@@ -47,7 +47,7 @@ const char *RTMath::displayRadians(const char *label, RTVector3& vec)
 
 const char *RTMath::displayDegrees(const char *label, RTVector3& vec)
 {
-    sprintf(m_string, "%s: roll:%+3.1f, pitch:%+3.1f, yaw:%+3.1f\n", label, vec.x() * RTMATH_RAD_TO_DEGREE,
+    sprintf(m_string, "%s: roll:%+3.2f, pitch:%+3.2f, yaw:%+3.2f\n", label, vec.x() * RTMATH_RAD_TO_DEGREE,
             vec.y() * RTMATH_RAD_TO_DEGREE, vec.z() * RTMATH_RAD_TO_DEGREE);
     return m_string;
 }

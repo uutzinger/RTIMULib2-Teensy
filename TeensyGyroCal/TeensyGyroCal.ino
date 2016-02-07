@@ -74,6 +74,7 @@ void loop()
   
     if (imu->IMURead()) {                                 // get the latest data
         imuData = imu->getIMUData();
+        Serial.println("IMU is self calibrating GYRO during no motion. Updated gyro bias is saved every 5 seconds to EEPROM.");
 		    Serial.println("Enter s to save current data.");
         Serial.println("-------");
 		    Serial.printf("%s", RTMath::displayRadians("Gyro:", imuData.gyro));     // accel data

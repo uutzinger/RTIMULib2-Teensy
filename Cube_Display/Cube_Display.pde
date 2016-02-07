@@ -47,10 +47,10 @@ float [] a       = new float [3]; // residual acceleration
 float [] wa      = new float [3]; // residula acceleration in world coordinate system
 float [] wv      = new float [3]; // velocity
 float [] wp      = new float [3]; // position
-int  dt          = 0;             // sample interval 
-int tim          = 0;             // sample interval 
-int tim_previous = 0;             // sample interval 
-int mo           = 0;             // motion
+long dt          = 0;             // sample interval 
+long tim          = 0;             // sample interval 
+long tim_previous = 0;             // sample interval 
+byte mo           = 0;             // motion
 
 int lf = 10; // 10 is '\n' in ASCII
 byte[] inBuffer = new byte[22]; // this is the number of chars on each line from the Arduino (including /r/n)
@@ -116,14 +116,39 @@ float decodeFloat(String inString) {
   byte [] inData = new byte[4];
   
   if(inString.length() == 8) {
-    inData[0] = (byte) unhex(inString.substring(0, 2));
-    inData[1] = (byte) unhex(inString.substring(2, 4));
-    inData[2] = (byte) unhex(inString.substring(4, 6));
-    inData[3] = (byte) unhex(inString.substring(6, 8));
+    inData[3] = (byte) unhex(inString.substring(0, 2));
+    inData[2] = (byte) unhex(inString.substring(2, 4));
+    inData[1] = (byte) unhex(inString.substring(4, 6));
+    inData[0] = (byte) unhex(inString.substring(6, 8));
   }
       
   int intbits = (inData[3] << 24) | ((inData[2] & 0xff) << 16) | ((inData[1] & 0xff) << 8) | (inData[0] & 0xff);
   return Float.intBitsToFloat(intbits);
+}
+
+long decodeLong(String inString) {
+  byte [] inData = new byte[4];
+  
+  if(inString.length() == 8) {
+    inData[3] = (byte) unhex(inString.substring(0, 2));
+    inData[2] = (byte) unhex(inString.substring(2, 4));
+    inData[1] = (byte) unhex(inString.substring(4, 6));
+    inData[0] = (byte) unhex(inString.substring(6, 8));
+  }
+      
+  long intbits = (inData[3] << 24) | ((inData[2] & 0xff) << 16) | ((inData[1] & 0xff) << 8) | (inData[0] & 0xff);
+  return intbits;
+}
+
+byte decodeByte(String inString) {
+  byte [] inData = new byte;
+  
+  if(inString.length() == 2) {
+    inData = (byte) unhex(inString.substring(0, 2));
+  }
+      
+  long intbits = (inData[0] & 0xff);
+  return intbits;
 }
 
 void serialEvent(Serial p) {
@@ -174,8 +199,8 @@ void serialEvent(Serial p) {
         wp[0]    = decodeFloat(inputStringArr[26]);
         wp[1]    = decodeFloat(inputStringArr[27]);
         wp[2]    = decodeFloat(inputStringArr[28]);
-        tim     = unhex(inputStringArr[29]);
-        mo      = Integer.parseInt(inputStringArr[30]);
+        tim      = decodeLong(inputStringArr[29]);
+        mo       = decodByte(inputStringArr[30]);
       }
       dt = tim - tim_previous;
       tim_previous = tim;

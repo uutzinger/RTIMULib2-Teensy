@@ -45,6 +45,10 @@ bool updateMaxMin = false;
 
 int inByte;
 
+float maxDelta = -1;
+float maxDeltaAutoTune = -1;
+float delta;
+	
 // Field Strength in uT at your location
 // http://www.ngdc.noaa.gov/geomag-web/#igrfwmm
 #define FIELDSTRENGTH 47.1185
@@ -82,55 +86,62 @@ void setup()
     imu->setCompassCalibrationMode(true);
     magCal = new RTIMUMagCal(settings);
     magCal->magCalInit();
+
+    magCal->m_magMin.setX(settings->m_compassCalMin.x()); 
+    magCal->m_magMin.setY(settings->m_compassCalMin.y());
+    magCal->m_magMin.setZ(settings->m_compassCalMin.z()); 
+    magCal->m_magMax.setX(settings->m_compassCalMax.x()); 
+    magCal->m_magMax.setY(settings->m_compassCalMax.y());
+    magCal->m_magMax.setZ(settings->m_compassCalMax.z()); 
+    
     lastDisplay = millis();
+    
 }
 
 void loop()
 {  
     unsigned long now = millis();
-    float maxDelta = -1;
-    float delta;
   
     if (imu->IMURead()) {                                 // get the latest data
         imuData = imu->getIMUData();
 		if (updateMaxMin)
 			magCal->newMinMaxData(imuData.compass);
-			
-      if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
-        lastDisplay = now;
-        Serial.println("-------");
-        Serial.println("-u/U disable/enable new Max/Min update");
-        Serial.println("-a/A disable/enable autotune");
-        Serial.println("-s save regular Max/Min values");
-        Serial.println("-S save auto tuned Max/Min values");
-        Serial.println("-t transfer regular Max/Min to Autotune");
-        Serial.println("-r reset");
-        Serial.println("-------");
-        Serial.printf("%s", RTMath::displayRadians("Compass:", imuData.compass));
-        Serial.printf("%s", imuData.motion ? "IMU is moving\n" : "IMU is still \n");  
-        Serial.println("-------");
-        Serial.print("minX: "); Serial.print(magCal->m_magMin.data(0));
-        Serial.print(" maxX: "); Serial.print(magCal->m_magMax.data(0)); Serial.println();
-        Serial.print("minY: "); Serial.print(magCal->m_magMin.data(1));
-        Serial.print(" maxY: "); Serial.print(magCal->m_magMax.data(1)); Serial.println();
-        Serial.print("minZ: "); Serial.print(magCal->m_magMin.data(2));
-        Serial.print(" maxZ: "); Serial.print(magCal->m_magMax.data(2)); Serial.println();
+		
+		if ((now - lastDisplay) >= DISPLAY_INTERVAL) {
+			lastDisplay = now;
+			Serial.println("-------");
+			Serial.println("-u/U disable/enable new Max/Min update");
+			Serial.println("-a/A disable/enable autotune");
+			Serial.println("-s save regular Max/Min values");
+			Serial.println("-S save auto tuned Max/Min values");
+			Serial.println("-t transfer regular Max/Min to Autotune");
+			Serial.println("-r reset");
+			Serial.println("-------");
+			Serial.printf("%s", RTMath::displayRadians("Compass:", imuData.compass));
+			Serial.printf("%s", imuData.motion ? "IMU is moving\n" : "IMU is still \n");  
+			Serial.println("-------");
+			Serial.print("minX: "); Serial.print(magCal->m_magMin.data(0));
+			Serial.print(" maxX: "); Serial.print(magCal->m_magMax.data(0)); Serial.println();
+			Serial.print("minY: "); Serial.print(magCal->m_magMin.data(1));
+			Serial.print(" maxY: "); Serial.print(magCal->m_magMax.data(1)); Serial.println();
+			Serial.print("minZ: "); Serial.print(magCal->m_magMin.data(2));
+			Serial.print(" maxZ: "); Serial.print(magCal->m_magMax.data(2)); Serial.println();
   
-  			maxDelta = -1;
-  			for (int i = 0; i < 3; i++) {
-  			  if ((magCal->m_magMax.data(i) - magCal->m_magMin.data(i)) > maxDelta)
-  				maxDelta = magCal->m_magMax.data(i) - magCal->m_magMin.data(i);
-  			}
-  			maxDelta /= 2.0f;
-  			for (int i = 0; i < 3; i++) {
-  			  delta = (magCal->m_magMax.data(i) - magCal->m_magMin.data(i)) / 2.0f;
-  			  compassCalScale[i] = maxDelta / delta;            // makes everything the same range
-  			  compassCalOffset[i] = (magCal->m_magMax.data(i) + magCal->m_magMin.data(i)) / 2.0f;
-  			}
-  			compass.setX((imuData.compass.x() - compassCalOffset[0]) * compassCalScale[0]);
-  			compass.setY((imuData.compass.y() - compassCalOffset[1]) * compassCalScale[1]);
-  			compass.setZ((imuData.compass.z() - compassCalOffset[2]) * compassCalScale[2]);
-  		
+			maxDelta = -1;
+			for (int i = 0; i < 3; i++) {
+			  if ((magCal->m_magMax.data(i) - magCal->m_magMin.data(i)) > maxDelta)
+				maxDelta = magCal->m_magMax.data(i) - magCal->m_magMin.data(i);
+			}
+			maxDelta /= 2.0f;
+			for (int i = 0; i < 3; i++) {
+			  delta = (magCal->m_magMax.data(i) - magCal->m_magMin.data(i)) / 2.0f;
+			  compassCalScale[i] = maxDelta / delta;            // makes everything the same range
+			  compassCalOffset[i] = (magCal->m_magMax.data(i) + magCal->m_magMin.data(i)) / 2.0f;
+			}
+			compass.setX((imuData.compass.x() - compassCalOffset[0]) * compassCalScale[0]);
+			compass.setY((imuData.compass.y() - compassCalOffset[1]) * compassCalScale[1]);
+			compass.setZ((imuData.compass.z() - compassCalOffset[2]) * compassCalScale[2]);
+			
   			Serial.println("-------");
   			Serial.printf("%s", RTMath::displayRadians("Compass Calibrated:", compass));  
   		
@@ -142,27 +153,53 @@ void loop()
   				if (updateMaxMin) {
   					Serial.println("You need to turn off Update Max/Min for auto tuning");
   				} else {
-
+            Serial.println("-------");
+            Serial.println("-Autotuning-");
+  
             compass.setX((imuData.compass.x() - compassCalOffsetAutoTune[0]) * compassCalScaleAutoTune[0]);
             compass.setY((imuData.compass.y() - compassCalOffsetAutoTune[1]) * compassCalScaleAutoTune[1]);
             compass.setZ((imuData.compass.z() - compassCalOffsetAutoTune[2]) * compassCalScaleAutoTune[2]);
-
-            RTFLOAT l = compass.length();  // This should be same as FIELDSTRENGTH
-            RTFLOAT c = (FIELDSTRENGTH / l) - (FIELDSTRENGTH / l / l); // adjust calibration values (empirically)
-
-            // compassCalOffset[0]-compassCalScale[0]
-
-            compassCalScaleAutoTune[0]=(1.0 - compass_ALPHA)*compassCalScaleAutoTune[0] + compass_ALPHA * (compassCalScaleAutoTune[0] *(1.0 + compass.x()/l * c));
-            compassCalScaleAutoTune[1]=(1.0 - compass_ALPHA)*compassCalScaleAutoTune[1] + compass_ALPHA * (compassCalScaleAutoTune[1] *(1.0 + compass.y()/l * c));
-            compassCalScaleAutoTune[2]=(1.0 - compass_ALPHA)*compassCalScaleAutoTune[2] + compass_ALPHA * (compassCalScaleAutoTune[2] *(1.0 + compass.z()/l * c));
   
-  					compass.setX((imuData.compass.x() - compassCalOffsetAutoTune[0]) * compassCalScaleAutoTune[0]);
-  					compass.setY((imuData.compass.y() - compassCalOffsetAutoTune[1]) * compassCalScaleAutoTune[1]);
-  					compass.setZ((imuData.compass.z() - compassCalOffsetAutoTune[2]) * compassCalScaleAutoTune[2]);
-  					Serial.printf("%s", RTMath::displayRadians("Compass Auto Calibrated:", compass));  
-
-  				} // need to have Update Off for Autotune
-  			} // autotune
+    				RTFLOAT l = compass.length();  // This should be same as FIELDSTRENGTH
+    				RTFLOAT c = (FIELDSTRENGTH / l) - (FIELDSTRENGTH / l / l); // adjust calibration values (empirically)
+  
+    				compassCalScaleAutoTune[0]=(1.0 - compass_ALPHA)*compassCalScaleAutoTune[0] + compass_ALPHA * (compassCalScaleAutoTune[0] *(1.0 + compass.x()/maxDelta * c));
+    				compassCalScaleAutoTune[1]=(1.0 - compass_ALPHA)*compassCalScaleAutoTune[1] + compass_ALPHA * (compassCalScaleAutoTune[1] *(1.0 + compass.y()/maxDelta * c));
+    				compassCalScaleAutoTune[2]=(1.0 - compass_ALPHA)*compassCalScaleAutoTune[2] + compass_ALPHA * (compassCalScaleAutoTune[2] *(1.0 + compass.z()/maxDelta * c));
+   
+    				magCal->m_magMaxAutoTune.setX(compassCalOffsetAutoTune[0] + compassCalScaleAutoTune[0]*maxDelta);
+    				magCal->m_magMaxAutoTune.setY(compassCalOffsetAutoTune[1] + compassCalScaleAutoTune[1]*maxDelta);
+    				magCal->m_magMaxAutoTune.setZ(compassCalOffsetAutoTune[2] + compassCalScaleAutoTune[2]*maxDelta);
+    				magCal->m_magMinAutoTune.setX(compassCalOffsetAutoTune[0] - compassCalScaleAutoTune[0]*maxDelta);
+    				magCal->m_magMinAutoTune.setY(compassCalOffsetAutoTune[1] - compassCalScaleAutoTune[1]*maxDelta);
+    				magCal->m_magMinAutoTune.setZ(compassCalOffsetAutoTune[2] - compassCalScaleAutoTune[2]*maxDelta);
+  			
+    				maxDeltaAutoTune = -1;
+    				for (int i = 0; i < 3; i++) {
+    					if ((magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i)) > maxDelta)
+    						maxDeltaAutoTune = magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i);
+    				}
+    				maxDeltaAutoTune /= 2.0f;
+    				for (int i = 0; i < 3; i++) {
+    					delta = (magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i)) / 2.0f;							//
+    					compassCalScaleAutoTune[i]  = (maxDeltaAutoTune/delta) * (maxDeltaAutoTune/maxDelta);            				// makes everything the same range
+    					compassCalOffsetAutoTune[i] = (magCal->m_magMaxAutoTune.data(i) + magCal->m_magMinAutoTune.data(i)) / 2.0f;		//
+    				}
+    				compass.setX((imuData.compass.x() - compassCalOffsetAutoTune[0]) * compassCalScaleAutoTune[0]);
+    				compass.setY((imuData.compass.y() - compassCalOffsetAutoTune[1]) * compassCalScaleAutoTune[1]);
+    				compass.setZ((imuData.compass.z() - compassCalOffsetAutoTune[2]) * compassCalScaleAutoTune[2]);
+  
+    				// Auto tune
+    				Serial.print("minX: "); Serial.print(magCal->m_magMinAutoTune.data(0));
+    				Serial.print(" maxX: "); Serial.print(magCal->m_magMaxAutoTune.data(0)); Serial.println();
+    				Serial.print("minY: "); Serial.print(magCal->m_magMinAutoTune.data(1));
+    				Serial.print(" maxY: "); Serial.print(magCal->m_magMaxAutoTune.data(1)); Serial.println();
+    				Serial.print("minZ: "); Serial.print(magCal->m_magMinAutoTune.data(2));
+    				Serial.print(" maxZ: "); Serial.print(magCal->m_magMaxAutoTune.data(2)); Serial.println();
+            Serial.printf("%s", RTMath::displayRadians("Compass Auto Calibrated:", compass));  
+            Serial.println("-------------");
+    			} // need to have Update Off for Autotune
+        } // autotune
       } // display
     } // imu read
   
@@ -204,15 +241,15 @@ void loop()
           magCal->m_magMinAutoTune.setX( magCal->m_magMin.x());
           magCal->m_magMinAutoTune.setY( magCal->m_magMin.y());
           magCal->m_magMinAutoTune.setZ( magCal->m_magMin.z());
-          maxDelta = -1;
+          maxDeltaAutoTune = -1;
           for (int i = 0; i < 3; i++) {
             if ((magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i)) > maxDelta)
-            maxDelta = magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i);
+            maxDeltaAutoTune = magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i);
           }
-          maxDelta /= 2.0f;
+          maxDeltaAutoTune /= 2.0f;
           for (int i = 0; i < 3; i++) {
             delta = (magCal->m_magMaxAutoTune.data(i) - magCal->m_magMinAutoTune.data(i)) / 2.0f;
-            compassCalScaleAutoTune[i] = maxDelta / delta * (FIELDSTRENGTH/maxDelta);            // makes everything the same range
+            compassCalScaleAutoTune[i] = maxDeltaAutoTune / delta ;            // makes everything the same range
             compassCalOffsetAutoTune[i] = (magCal->m_magMaxAutoTune.data(i) + magCal->m_magMinAutoTune.data(i)) / 2.0f;
           }
           Serial.println("Copied.");
