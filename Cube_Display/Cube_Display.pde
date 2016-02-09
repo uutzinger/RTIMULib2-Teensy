@@ -84,7 +84,8 @@ void myDelay(int time) { // millis
 
 void setup() 
 {
-  size(VIEW_SIZE_X, VIEW_SIZE_Y, OPENGL);
+  // size(VIEW_SIZE_X, VIEW_SIZE_Y, OPENGL);
+  size(1000, 600, OPENGL);
   println("Opening Serial Port..");
   myPort = new Serial(this, serialPort, BAUDRATE);
   
@@ -141,14 +142,20 @@ long decodeLong(String inString) {
 }
 
 byte decodeByte(String inString) {
-  byte [] inData = new byte;
+  byte [] inData = new byte[1];
   
   if(inString.length() == 2) {
-    inData = (byte) unhex(inString.substring(0, 2));
+    inData[0] = (byte) unhex(inString.substring(0, 2));
   }
       
-  long intbits = (inData[0] & 0xff);
+  byte intbits = (byte) (inData[0] & 0xff);
   return intbits;
+}
+
+int bitRead(byte b, int bitPos)
+{
+  int x = b & (1 << bitPos);
+  return x == 0 ? 0 : 1;
 }
 
 void serialEvent(Serial p) {
@@ -166,8 +173,8 @@ void serialEvent(Serial p) {
         a[0]    = decodeFloat(inputStringArr[3]);
         a[1]    = decodeFloat(inputStringArr[4]);
         a[2]    = decodeFloat(inputStringArr[5]);
-        tim     = unhex(inputStringArr[6]);
-        mo      = Integer.parseInt(inputStringArr[7]);
+        tim     = decodeLong(inputStringArr[6]);
+        mo      = decodeByte(inputStringArr[7]);
       }
       else if(inputStringArr.length >= 31) {    
         acc[0]  = decodeFloat(inputStringArr[0]);
@@ -200,7 +207,7 @@ void serialEvent(Serial p) {
         wp[1]    = decodeFloat(inputStringArr[27]);
         wp[2]    = decodeFloat(inputStringArr[28]);
         tim      = decodeLong(inputStringArr[29]);
-        mo       = decodByte(inputStringArr[30]);
+        mo       = decodeByte(inputStringArr[30]);
       }
       dt = tim - tim_previous;
       tim_previous = tim;
@@ -252,20 +259,20 @@ void buildBoxShape() {
   //Y-
   beginShape(QUADS);
   //fill(#ff00ff);
-  texture(Bottom);
-  vertex(-box_x2, -box_y2, -box_z2, 1, 1);
-  vertex(box_x2, -box_y2, -box_z2, 1, 0);
-  vertex(box_x2, -box_y2, box_z2, 0, 0);
-  vertex(-box_x2, -box_y2, box_z2, 0, 1);
+  texture(Top);
+  vertex(box_x2, -box_y2, box_z2, 0, 1);
+  vertex(-box_x2, -box_y2, box_z2, 0, 0);
+  vertex(-box_x2, -box_y2, -box_z2, 1, 0);
+  vertex(box_x2, -box_y2, -box_z2, 1, 1);
   endShape();
   
   //Y+
   beginShape(QUADS);
-  texture(Top);
+  texture(Bottom);
   // fill(#00ffff);
-  vertex(-box_x2, box_y2, -box_z2, 1, 1);
-  vertex(box_x2, box_y2, -box_z2, 1, 0);
   vertex(box_x2, box_y2, box_z2, 0, 0);
+  vertex(box_x2, box_y2, -box_z2, 1, 0);
+  vertex(-box_x2, box_y2, -box_z2, 1, 1);
   vertex(-box_x2, box_y2, box_z2, 0, 1);
   endShape();
 }
@@ -305,9 +312,13 @@ void drawCube() {
     // rotateY(-Euler[0]); // psi - yaw
     
     // Adapted:
-    rotateZ(+(eul[0]-heul[0])); // phi - roll
-    rotateX(+(eul[1]-heul[1])); // theta - pitch
-    rotateY(-(eul[2]-heul[2])); // psi - yaw
+    //rotateZ(+(eul[0]-heul[0])); // phi - roll
+    //rotateX(+(eul[1]-heul[1])); // theta - pitch
+    //rotateY(-(eul[2]-heul[2])); // psi - yaw
+
+    rotateY(-(eul[2]-heul[2])); // phi - roll
+    rotateZ(+(eul[1]-heul[1])); // theta - pitch
+    rotateX(+(eul[0]-heul[0])); // psi - yaw
 
     buildBoxShape();
     
@@ -330,8 +341,9 @@ void draw() { // Main Loop
   text("Residual - " + String.format("%+.3f",sqrt(a[0]*a[0]+a[1]*a[1]+a[2]*a[2])) + "\nX : " + String.format("%+.3f",a[0]) + "m/s2 \nY : " +   String.format("%+.3f",a[1]) + "m/s2 \nZ : " +   String.format("%+.3f",a[2]) + "m/s2", 700, 20);
   text("Heading: " + String.format("%+.1f",heading*RAD_TO_DEGREE) + "deg" , 700, 100);
   text("dt: " + str( dt/1000) + "ms\n", 700, 120);
-  String smo = str(mo);
-  text("Motion: " + mo, 700, 140);
+  String scomp = str(bitRead(mo,1) );
+  String smo = str(bitRead(mo,7) );
+  text("Motion: " + smo + " Compass: " + scomp, 700, 140);
 
   text("Accel    - " + String.format("%+.3f",sqrt(wa[0]*wa[0]+wa[1]*wa[1]+wa[2]*wa[2])) + "m/s2\nX : " + String.format("%+.3f",wa[0]) + "m/s2 \nY : " +   String.format("%+.3f",wa[1]) + "m/s2 \nZ : " +   String.format("%+.3f",wa[2]) + "m/s2", 700, 180);
   text("Velocity - " + String.format("%+.3f",sqrt(wv[0]*wv[0]+wv[1]*wv[1]+wv[2]*wv[2])) + "m/s\nX : "  + String.format("%+.3f",wv[0]) + "m/s \nY : "  +   String.format("%+.3f",wv[1]) + "m/s \nZ : "  +   String.format("%+.3f",wv[2]) + "m/s", 700, 260);
@@ -392,4 +404,3 @@ void keyPressed() {
     heul[0]=0;
   }
 }
-

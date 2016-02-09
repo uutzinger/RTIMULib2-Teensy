@@ -218,8 +218,9 @@ protected:
     RTFLOAT m_gyroLearningAlpha;                            // gyro bias rapid learning rate
     RTFLOAT m_gyroContinuousAlpha;                          // gyro bias continuous (slow) learning rate
     RTVector3 m_previousAccel;                              // previous step accel for gyro learningboo
-    RTVector3 m_gyroBiasTemp;                               // current bias that is modified in the gyro learningboo
-    RTVector3 m_gyroBiasCandidate;                          // previous bias that was modified and will become active if minimal interval passed
+    RTVector3 m_gyroBiasTemp;                               // current bias that is modified in the gyro learning algorithm
+    RTVector3 m_gyroBiasCandidate;                          // bias that will become active once all exclusion criteria are met
+	bool m_noMotionStarted;										// the bias algorithm just started
 	
 	int m_noMotionCount;									// measure how many no motions we had, save bias every 5 seconds of new motion
 	int m_intervalCount;									// make sure there is was motion for 0.1 secs until gyro bias is updated

@@ -42,25 +42,23 @@
 #include "RTIMUBNO055.h"
 
 //  this sets the learning rate for compass and accelerometer running average calculation
-
-#define COMPASS_ALPHA 0.2f
+// 0.2 original
+#define COMPASS_ALPHA 0.1f
 
 // this sets the learning rate for the acceleration length to become 1 g during nomotion
 #define ACCEL_ALPHA 0.01f
 
 //  this sets the min range (max - min) of values to trigger runtime mag calibration
-
 #define RTIMU_RUNTIME_MAGCAL_RANGE  30
 
-//  this defines the accelerometer noise level
-
-#define RTIMU_FUZZY_GYRO_ZERO      0.20
-
+//  this defines the gyro noise level
+// #define RTIMU_FUZZY_GYRO_ZERO      0.20
+#define RTIMU_FUZZY_GYRO_ZERO      0.10
+// defines the threshold for fast/slow learing
 #define RTIMU_FUZZY_GYRO_BIAS      0.02
 
 //  this defines the accelerometer noise level
-
-#define RTIMU_FUZZY_ACCEL_ZERO      0.05
+#define RTIMU_FUZZY_ACCEL_ZERO      0.01
 
 //  Axis rotation arrays
 
@@ -347,13 +345,14 @@ void RTIMU::handleGyroBias()
             m_imuData.accel.setZ(tempIMU.accel.z() * matrix[8]);
             m_imuData.compass.setZ(tempIMU.compass.z() * matrix[8]);
         }
-    }
+    } // end axis rotations
 
+    // Motion Detection
+	// ----------------
     RTVector3 deltaAccel = m_previousAccel;
-    deltaAccel -= m_imuData.accel;   // compute difference
+    deltaAccel -= m_imuData.accel;          // compute accel variations
     m_previousAccel = m_imuData.accel;
-    //printf("Delta Accel: %f, Gyration: %f\n", deltaAccel.length(), m_imuData.gyro.length());
-
+    // Serial.printf("Delta Accel: %f, Gyration: %f\n", deltaAccel.length(), m_imuData.gyro.length());
 	m_previousMotion = m_imuData.motion;  // to keep track of motion transitions
 	// is the IMU moving?
     if ((deltaAccel.length() < RTIMU_FUZZY_ACCEL_ZERO) && (m_imuData.gyro.length() < RTIMU_FUZZY_GYRO_ZERO)) {
@@ -362,38 +361,36 @@ void RTIMU::handleGyroBias()
 		m_imuData.motion = true;
 	}
     // if (m_imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } 
-	
-	if ((m_previousMotion == true) & (m_imuData.motion==false)) { 
-		// no motion period started
+    // is this the start of n sill phase
+	if ((m_previousMotion == true) && (m_imuData.motion==false)) { 
 		// initialize potential bias update
 		m_intervalCount=0; //
 		m_noMotionCount=0;
-		// initialize the temporary bias for computations
-		m_gyroBiasTemp.setX(m_settings->m_gyroBias.x());
-		m_gyroBiasTemp.setY(m_settings->m_gyroBias.y());
-		m_gyroBiasTemp.setZ(m_settings->m_gyroBias.z());
+		// initialize the temporary bias with current bias
+		m_gyroBiasTemp = m_settings->m_gyroBias;
 		// if system was not still for more than 0.1 seconds, it will use initial bias as candidate 
-		m_gyroBiasCandidate.setX(m_settings->m_gyroBias.x());
-		m_gyroBiasCandidate.setY(m_settings->m_gyroBias.y());
-		m_gyroBiasCandidate.setZ(m_settings->m_gyroBias.z());
+		m_gyroBiasCandidate = m_settings->m_gyroBias;
 	    // Serial.println("IMU transitioned from motion to still");
+		m_noMotionStarted = true;
 	}
 
+	//
+	// The goal is to discard the first 0.1 sec of no motion and the last 0.1 sec of no motion
+	// from bias updates
+	// bias update is passed through low pass filter
+	//
 	if (!m_imuData.motion) { // Update Gyro Bias
 		m_intervalCount++; 
 		// if device was still for 0.1 seconds 
-		//    make activate new bias candidate
-		//    make update temporary bias the new candidate
+		//    update current bias with candidate
+		//    update candidate bias with temporary bias
+		//    when noMotionStarted do not update bias for first interval
+		//    when IMU moves again, the candidate will not be applied, discarding the last interval
 		if (m_intervalCount >= 0.1 * m_sampleRate) {
 			m_intervalCount = 0;
-			// activate candidate bias
-			m_settings->m_gyroBias.setX(m_gyroBiasCandidate.x());
-			m_settings->m_gyroBias.setY(m_gyroBiasCandidate.y());
-			m_settings->m_gyroBias.setZ(m_gyroBiasCandidate.z());
-			// update candidate
-			m_gyroBiasCandidate.setX(m_gyroBiasTemp.x());
-			m_gyroBiasCandidate.setY(m_gyroBiasTemp.y());
-			m_gyroBiasCandidate.setZ(m_gyroBiasTemp.z());
+			m_settings->m_gyroBias = m_gyroBiasCandidate; 	// activate candidate bias
+			m_gyroBiasCandidate = m_gyroBiasTemp; 			// update candidate
+			m_noMotionStarted = false;                      // first interval passed
 			// Serial.println("Gyro bias and candidate updated");
 		}
 		// store new bias every 5 seconds in EEPROM
@@ -404,22 +401,24 @@ void RTIMU::handleGyroBias()
 			m_settings->saveSettings();
 		    //Serial.println("Gyro bias saved in EEPROM");
 		} 
-		// update temporary bias
-		RTVector3 gyroTemp = m_imuData.gyro - m_gyroBiasTemp;
-        //Serial.printf("%s: ", "Gyro"); Serial.printf(", x:%+4.5f", gyroTemp.x()); Serial.printf(", y:%+4.5f", gyroTemp.y()); Serial.printf(", z:%+4.5f", gyroTemp.z()); Serial.printf(", s:%+4.5f\n", gyroTemp.length()); 
-		// Serial.printf("%s: ", "Gyro Bias"); Serial.printf(", x:%+4.5f", m_settings->m_gyroBias.x()); Serial.printf(", y:%+4.5f", m_settings->m_gyroBias.y()); Serial.printf(", z:%+4.5f", m_settings->m_gyroBias.z()); Serial.printf(", s:%+4.5f\n", m_settings->m_gyroBias.length());
-		if (gyroTemp.length() > RTIMU_FUZZY_GYRO_BIAS) { // Aggressive Bias Update
-			m_gyroBiasTemp.setX((1.0 - m_gyroLearningAlpha) * m_gyroBiasTemp.x() + m_gyroLearningAlpha * m_imuData.gyro.x());
-			m_gyroBiasTemp.setY((1.0 - m_gyroLearningAlpha) * m_gyroBiasTemp.y() + m_gyroLearningAlpha * m_imuData.gyro.y());
-			m_gyroBiasTemp.setZ((1.0 - m_gyroLearningAlpha) * m_gyroBiasTemp.z() + m_gyroLearningAlpha * m_imuData.gyro.z());
-		    // Serial.println("Gyro learning fast");
-		} else { // Slow Bias Update
-			m_gyroBiasTemp.setX((1.0 - m_gyroContinuousAlpha) * m_gyroBiasTemp.x() + m_gyroContinuousAlpha * m_imuData.gyro.x());
-			m_gyroBiasTemp.setY((1.0 - m_gyroContinuousAlpha) * m_gyroBiasTemp.y() + m_gyroContinuousAlpha * m_imuData.gyro.y());
-			m_gyroBiasTemp.setZ((1.0 - m_gyroContinuousAlpha) * m_gyroBiasTemp.z() + m_gyroContinuousAlpha * m_imuData.gyro.z());
-		    // Serial.println("Gyro learning slow");
-		}
-	}
+		if (m_noMotionStarted == false) {
+			// update temporary bias
+			RTVector3 gyroTemp = m_imuData.gyro - m_gyroBiasTemp;
+			// Serial.printf("%s: ", "Gyro"); Serial.printf(", x:%+4.5f", gyroTemp.x()); Serial.printf(", y:%+4.5f", gyroTemp.y()); Serial.printf(", z:%+4.5f", gyroTemp.z()); Serial.printf(", s:%+4.5f\n", gyroTemp.length()); 
+			// Serial.printf("%s: ", "Gyro Bias"); Serial.printf(", x:%+4.5f", m_settings->m_gyroBias.x()); Serial.printf(", y:%+4.5f", m_settings->m_gyroBias.y()); Serial.printf(", z:%+4.5f", m_settings->m_gyroBias.z()); Serial.printf(", s:%+4.5f\n", m_settings->m_gyroBias.length());
+			if (gyroTemp.length() > RTIMU_FUZZY_GYRO_BIAS) { // Aggressive Bias Update
+				m_gyroBiasTemp.setX( (1.0 - m_gyroLearningAlpha) * m_gyroBiasTemp.x() + m_gyroLearningAlpha * m_imuData.gyro.x() );
+				m_gyroBiasTemp.setY( (1.0 - m_gyroLearningAlpha) * m_gyroBiasTemp.y() + m_gyroLearningAlpha * m_imuData.gyro.y() );
+				m_gyroBiasTemp.setZ( (1.0 - m_gyroLearningAlpha) * m_gyroBiasTemp.z() + m_gyroLearningAlpha * m_imuData.gyro.z() );
+				// Serial.println("Gyro learning fast");
+			} else { // Slow Bias Update
+				m_gyroBiasTemp.setX( (1.0 - m_gyroContinuousAlpha) * m_gyroBiasTemp.x() + m_gyroContinuousAlpha * m_imuData.gyro.x() );
+				m_gyroBiasTemp.setY( (1.0 - m_gyroContinuousAlpha) * m_gyroBiasTemp.y() + m_gyroContinuousAlpha * m_imuData.gyro.y() );
+				m_gyroBiasTemp.setZ( (1.0 - m_gyroContinuousAlpha) * m_gyroBiasTemp.z() + m_gyroContinuousAlpha * m_imuData.gyro.z() );
+				// Serial.println("Gyro learning slow");
+			}
+		} // end noMotion has been going on for more than interval
+	} //  no motion
 		
 	// Apply Gyro Bias
 	if (getGyroCalibrationValid()) {
