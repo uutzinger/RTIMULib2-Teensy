@@ -2,17 +2,12 @@
 //
 //  This file is part of RTIMULib2-Teensy
 //
-//  Copyright (c) 2015, richards-tech, LLC
-//
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of 
 //  this software and associated documentation files (the "Software"), to deal in 
 //  the Software without restriction, including without limitation the rights to use, 
 //  copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the 
 //  Software, and to permit persons to whom the Software is furnished to do so, 
 //  subject to the following conditions:
-//
-//  The above copyright notice and this permission notice shall be included in all 
-//  copies or substantial portions of the Software.
 //
 //  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
 //  INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
@@ -72,12 +67,14 @@ float slerpPower = 0.02;                             // Fusion convergence
 
 // IMU Status
 byte systemStatusIMU = B00000000;
-#define STATE_FUSIONPOSEVALID    0
-#define STATE_FUSIONQPOSEVALID   1
-#define STATE_GYROVALID          2
-#define STATE_ACCELVALID         3
-#define STATE_COMPASSVALID       4
-#define STATE_IMUTEMPVALID       5
+#define STATE_FUSIONPOSEVALID       0
+#define STATE_FUSIONQPOSEVALID      1
+#define STATE_GYROVALID             2
+#define STATE_ACCELVALID            3
+#define STATE_COMPASSVALID          4
+#define STATE_IMUTEMPVALID          5
+#define STATE_GYRORUNTIMEUPDATE     6
+#define STATE_COMPASSRUNTIMEUPDATE  7
 
 // AUX Status
 byte systemStatusAUX = B00000000;
@@ -228,7 +225,7 @@ void setup()
   
 void loop()
 {  
-    unsigned long now = micros();
+    unsigned long currentTime = micros();
     
     RTQuaternion rotatedGravity;
     RTQuaternion fusedConjugate;
@@ -293,6 +290,10 @@ void loop()
           firstTime = true;
         }
 		
+        // Residual Bias
+        // exclude first 10 readings and last 10 readings of noMotion-phase when computing residuals
+        // same approach as in computing gyro bias
+        ///////////////////////////
         if (imuData.motion == false) {     // if no motion, accumulate residual motion for background acceleration computation
           intervalCount++;
           if (intervalCount >= 10){         // work in intervals for 10, discard first and last interval.
@@ -303,8 +304,8 @@ void loop()
           } // 
           if (firstTime==false) {
               RTVector3 residualsTemp=(residuals-residualsBiasTemp);
-              if (residualsTemp.length() > 0.1f ) { residualsAlpha = 0.02f; } else { residualsAlpha = 0.002f; }
-              residualsBiasTemp = residualsBiasTemp * (1.0f-residualsAlpha) + residuals * residualsAlpha;   // update average residual acceleration
+              if (residualsTemp.length() > 0.1f ) { residualsAlpha = 0.02f; } else { residualsAlpha = 0.002f; } // fast or regual learning
+              residualsBiasTemp = residualsBiasTemp * (1.0f-residualsAlpha) + residuals * residualsAlpha;       // update average residual acceleration
           } // update bias
         } // no motion
 
@@ -327,7 +328,7 @@ void loop()
         }
         // Update Velocity
         worldVelocity = worldVelocity - ( worldVelocityBias * (float(dt) * 0.000001f) );
-        // Avoid Velcity Bias
+        // Avoid Velocity Bias
         if (imuData.motion == false) {     // its not moving
           worldVelocity.zero();            // minimize error propagation
         }
@@ -340,21 +341,21 @@ void loop()
         worldVelocityPrevious  = worldVelocity;
 
         // Do we want to update sampling rate?
-        if ((now - lastRate) >= 1000000) { // 1 second
+        if ((currentTime - lastRate) >= 1000000) { // 1 second
             sampleRate=sampleCount;
             sampleCount = 0;
-            lastRate = now;
+            lastRate = currentTime;
         }
     
         // Do we want to display data?
-        if ((now-lastDisplay) >= DISPLAY_INTERVAL) {
-          lastDisplay = now;
+        if ((currentTime-lastDisplay) >= DISPLAY_INTERVAL) {
+          lastDisplay = currentTime;
           if (STREAM) { REPORT = true; } else { REPORT = false; }
         }
     
         // Do we want to check input ?
-        if ((now-lastInAvail) >= CHECKINPUT_INTERVAL) {
-          lastInAvail = now;
+        if ((currentTime-lastInAvail) >= CHECKINPUT_INTERVAL) {
+          lastInAvail = currentTime;
           INAVAIL = true;
         } else {
           INAVAIL = false;
@@ -365,7 +366,7 @@ void loop()
         ///////////////////////////////////////////////////////////////
         if (REPORT) {
           if (VERBOSE) {
-            // now=micros();
+            // currentTime=micros();
             Serial.println("-System--");
             Serial.print("Sample rate: "); Serial.print(sampleRate);
             if (imu->IMUGyroBiasValid())
@@ -426,10 +427,12 @@ void loop()
             Serial.printf("AUXH:  %i ", bitRead(systemStatusAUX, STATE_HUMIDITYVALID));
             Serial.printf("AUXHT: %i ", bitRead(systemStatusAUX, STATE_HUMIDITYTEMPVALID));
             Serial.println();
-            Serial.println("-Fusion--");
+            Serial.println("-Fusion--Run Time-");
             Serial.printf("G:     %i ", bitRead(fusionStatus, STATE_FUSION_GYROENABLE));
             Serial.printf("A:     %i ", bitRead(fusionStatus, STATE_FUSION_ACCELENABLE));
             Serial.printf("C:     %i ", bitRead(fusionStatus, STATE_FUSION_COMPASSENABLE));
+            Serial.printf("Grt:   %i ", bitRead(systemStatusIMU, STATE_GYRORUNTIMEUPDATE));
+            Serial.printf("Crt:   %i ", bitRead(systemStatusIMU, STATE_COMPASSRUNTIMEUPDATE));
             Serial.println();
             Serial.println("-Motion--");
             Serial.print(RTMath::displayRadians("Residuals          [m/s2]", residuals));           // Residuals in device coordiante system
@@ -439,8 +442,9 @@ void loop()
             Serial.print(RTMath::displayRadians("World Velocity Bias [m/s]", worldVelocityBias));   // Velocity bias in world coordiante system
             Serial.print(RTMath::displayRadians("World Position        [m]", worldLocation));       // Location in world coordiante system
             residuals_avg.addValue(residuals.length());
-            Serial.printf("Residuals AVG: %+4.3f ,", residuals_avg.getAverage());
-            Serial.println((micros()-now)); // takes about 4ms to send the data
+            Serial.printf("Average Residuals Length: %+4.3f, ", residuals_avg.getAverage());
+            Serial.print("Data Transmission Time [us]: ");
+            Serial.println((micros()-currentTime)); // takes about 4ms to send the data
           } else {
             if (CUBE) {
               CubeUpdate();
@@ -476,6 +480,12 @@ void loop()
         } else if (inByte == 'G') { // turn on Gyroscope Fusion
           imu->setGyroEnable(true);
           bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
+        } else if (inByte == 'r') { // turn on Gyroscope Fusion
+          imu->setGyroRunTimeCalibrationEnable(false);
+          bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+        } else if (inByte == 'R') { // turn on Gyroscope Fusion
+          imu->setGyroRunTimeCalibrationEnable(true);
+          bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
         } else if (inByte == 's') { // turn off streaming
           STREAM=false;
         } else if (inByte == 'S') { // turn on  streaming
@@ -486,9 +496,9 @@ void loop()
           VERBOSE=true;
         } else if (inByte == 'v') { // send HEX
           VERBOSE=false;
-        } else if (inByte == 'b') { // send HEX
+        } else if (inByte == 'b') { // send Cube Processign Pogram HEX
           CUBE=true;
-        } else if (inByte == 'B') { // send HEX
+        } else if (inByte == 'B') { // send Bit Buckets HEX
           CUBE=false;
         } else if (inByte == '?') { // send STATE information
           HEXsendIMUStatus();
@@ -515,6 +525,8 @@ void IMUStatusUpdate(){
     bitWrite(systemStatusIMU, STATE_ACCELVALID, imuData.accelValid); 
     bitWrite(systemStatusIMU, STATE_COMPASSVALID, imuData.compassValid); 
     bitWrite(systemStatusIMU, STATE_IMUTEMPVALID, imuData.IMUtemperatureValid);
+    bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+    bitWrite(systemStatusIMU, STATE_COMPASSRUNTIMEUPDATE, imu->getCompassRunTimeCalibrationEnable() );
     //--Aux
     bitWrite(systemStatusAUX, STATE_PRESSUREVALID, imuData.pressureValid);
     bitWrite(systemStatusAUX, STATE_PRESSURETEMPVALID, imuData.pressureTemperatureValid); 

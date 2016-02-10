@@ -85,57 +85,56 @@ public:
 
     // setGyroContinuousALearninglpha allows the continuous learning rate to be over-ridden
     // The value must be between 0.0 and 1.0 and will generally be close to 0
-
     bool setGyroContinuousLearningAlpha(RTFLOAT alpha);
 
     // returns true if enough samples for valid data
-
     virtual bool IMUGyroBiasValid();
 
     //  the following function can be called to set the SLERP power
-
     void setSlerpPower(RTFLOAT power) { m_fusion->setSlerpPower(power); }
 
     //  call the following to reset the fusion algorithm
-
     void resetFusion() { m_fusion->reset(); }
 
-    //  the following three functions control the influence of the gyro, accel and compass sensors
-
+    // the following three functions control the influence of the gyro, accel and compass sensors
+	// on the fusion algorithm
     void setGyroEnable(bool enable) { m_fusion->setGyroEnable(enable);}
     void setAccelEnable(bool enable) { m_fusion->setAccelEnable(enable);}
     void setCompassEnable(bool enable) { m_fusion->setCompassEnable(enable);}
-
+    //
     const bool getGyroEnable() { return m_fusion->getGyroEnable();}
     const bool getAccelEnable() { return m_fusion->getAccelEnable();}
     const bool getCompassEnable() { return m_fusion->getCompassEnable();}
 
     //  call the following to enable debug messages
-
     void setDebugEnable(bool enable) { m_fusion->setDebugEnable(enable); }
 
+	// enables/disables runtime calibration
+	void setGyroRunTimeCalibrationEnable(bool enable) { m_gyroRunTimeCalibrationEnable = enable;}
+    void setAccelRunTimeCalibrationEnable(bool enable) { m_accelRunTimeCalibrationEnable = enable;}
+    void setCompassRunTimeCalibrationEnable(bool enable) { m_compassRunTimeCalibrationEnable = enable;}
+	const bool getGyroRunTimeCalibrationEnable() { return m_gyroRunTimeCalibrationEnable;}
+    const bool getAccelRunTimeCalibrationEnable() { return m_accelRunTimeCalibrationEnable;}
+    const bool getCompassRunTimeCalibrationEnable() { return m_compassRunTimeCalibrationEnable;}
+    
+	
     //  getIMUData returns the standard outputs of the IMU and fusion filter
-
     const RTIMU_DATA& getIMUData() { return m_imuData; }
 
     //  setExtIMUData allows data from some external IMU to be injected to the fusion algorithm
-
     void setExtIMUData(RTFLOAT gx, RTFLOAT gy, RTFLOAT gz, RTFLOAT ax, RTFLOAT ay, RTFLOAT az,
         RTFLOAT mx, RTFLOAT my, RTFLOAT mz, uint64_t timestamp);
 
     //  the following two functions get access to the measured pose (accel and compass)
-
     const RTVector3& getMeasuredPose() { return m_fusion->getMeasuredPose(); }
     const RTQuaternion& getMeasuredQPose() { return m_fusion->getMeasuredQPose(); }
 
     //  setCompassCalibrationMode() turns off use of cal data so that raw data can be accumulated
     //  to derive calibration data
-
     void setCompassCalibrationMode(bool enable) { m_compassCalibrationMode = enable; }
 
     //  setAccelCalibrationMode() turns off use of cal data so that raw data can be accumulated
     //  to derive calibration data
-
     void setAccelCalibrationMode(bool enable) { m_accelCalibrationMode = enable; }
 
     //  setTemperatureCalibrationMode() turns off use of cal data so that raw data can be accumulated
@@ -151,19 +150,15 @@ public:
     void setCalibrationData();
 
     //  getCompassCalibrationValid() returns true if the compass min/max calibration data is being used
-
     bool getCompassCalibrationValid() { return !m_compassCalibrationMode && m_settings->m_compassCalValid; }
 
     //  getRuntimeCompassCalibrationValid() returns true if the runtime compass min/max calibration data is being used
-
     bool getRuntimeCompassCalibrationValid() { return !m_compassCalibrationMode && m_runtimeMagCalValid; }
 
     //  getCompassCalibrationEllipsoidValid() returns true if the compass ellipsoid calibration data is being used
-
     bool getCompassCalibrationEllipsoidValid() { return !m_compassCalibrationMode && m_settings->m_compassCalEllipsoidValid; }
 
     //  getAccelCalibrationValid() returns true if the accel calibration data is being used
-
     bool getAccelCalibrationValid() { return !m_accelCalibrationMode && m_settings->m_accelCalValid; }
 
     //  getAccelCalibrationEllipsoidValid() returns true if the compass ellipsoid calibration data is being used
@@ -202,6 +197,10 @@ protected:
     bool m_accelCalibrationMode;                            // true if cal mode so don't use cal data!
     bool m_temperatureCalibrationMode;                      // true if cal mode so don't use cal data!
     bool m_gyroCalibrationMode;                             // true if cal mode so don't use cal data!
+	
+	bool m_gyroRunTimeCalibrationEnable; 
+	bool m_accelRunTimeCalibrationEnable; 
+	bool m_compassRunTimeCalibrationEnable; 
 
     RTIMU_DATA m_imuData;                                   // the data from the IMU
 
@@ -222,7 +221,7 @@ protected:
     RTVector3 m_gyroBiasCandidate;                          // bias that will become active once all exclusion criteria are met
 	bool m_noMotionStarted;										// the bias algorithm just started
 	
-	int m_noMotionCount;									// measure how many no motions we had, save bias every 5 seconds of new motion
+	int m_EEPROMCount;									// measure how many no motions we had, save bias every 5 seconds of new motion
 	int m_intervalCount;									// make sure there is was motion for 0.1 secs until gyro bias is updated
 	bool m_previousMotion;									// to figure out if imu transitioned from motion to no motion
 

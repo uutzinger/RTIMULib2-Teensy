@@ -41,6 +41,8 @@
 #define RTIMULIB_CAL_DATA_VALID_LOW         0xfc            // pattern to detect valid config - low byte
 #define RTIMULIB_CAL_DATA_VALID_HIGH        0x15            // pattern to detect valid config - high byte
 
+#define LEDPIN 13
+
 typedef struct
 {
     unsigned char validL;                                   // should contain the valid pattern if a good config
@@ -280,34 +282,27 @@ class RTIMUSettings : public RTIMUHal
 public:
 
     //  Standard constructor sets up for ini file in working directory
-
     RTIMUSettings(const char *productType = "RTIMULib");
 
     //  This function tries to find an IMU. It stops at the first valid one
     //  and returns true or else false
-
     bool discoverIMU(int& imuType, bool& busIsI2C, unsigned char& slaveAddress);
 
     //  This function tries to find a pressure sensor. It stops at the first valid one
     //  and returns true or else false
-
     bool discoverPressure(int& pressureType, unsigned char& pressureAddress);
 
     //  This function tries to find a humidity sensor. It stops at the first valid one
     //  and returns true or else false
-
     bool discoverHumidity(int& humidityType, unsigned char& humidityAddress);
 
     //  This function sets the settings to default values.
-
     void setDefaults();
 
     //  This function loads the local variables from the settings file or uses defaults
-
     virtual bool loadSettings();
 
     //  This function saves the local variables to the settings file
-
     virtual bool saveSettings();
 
     //  These are the local variables

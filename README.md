@@ -2,13 +2,13 @@
 
 RTIMULib2-Teensy is the simplest way to connect a 9,10,11-dof IMU to a Teensy3.1 or 3.2 and obtain fully fused quaternion or Euler angle pose data. It will also read pressure sensors and humidity sensors. 
 
-RTIMULib2-Teensy is the development version of the original RTIMULib-Teensy library. So far, the main change is the addition of the runtime magnetometer calibration functionality. Additional changes to this fork include drivers for underwater pressure sensor, humidity sensors, temperature calibration option, cross axis corrections for acceleration, attempt for runtime accelerometer calibration and storing more calibration data in the EEPROM.
+This fork of the RTIMULib2-Teensy include drivers for underwater pressure sensor, humidity sensors, temperature calibration option, cross axis corrections for acceleration, option for runtime accelerometer calibration, storing more calibration data in the EEPROM, extended Arduino Sketch to verify calibration and visualize performance and Processing Sketch that visually displays the pose. Changes were made to the gyro bias calibration to better reject values.
 
-*** Magnetometer calibration is critical for good performance and, with some IMU chips, meaningful fusion results will not be obtained at all unless the magnetometers have been calibrated or is turned off ***
+*** If the fusion algorithm uses magnetometer data, it is critical that it is calibrated. Noise in the pose computation is usually due to magnetometer. When running this software on a robot it is best to turn off the magnetometer input into the fusion algorithm before motors are energized. ***
 
-*** ToDo: Magnetic distortion detection is partially implemented. Earth's magnetic field strength does not change based on pose of sensor. If field strength changes during motion, a motor or field anomaly is present and the fusion algorithm should automatically turn off magnetometer input. 
+*** There is a runtime gyroscope bias computation which is engaged if the motion detection algorithm senses that the IMU is not moving. The motion detection algorithm is not perfect and if the user has a priori knowledge about the motion status, the gyroscope bias computation should only be engaged when the IMU is not moving. ***
 
-*** ToDo: There is code provided for automated acceleration calibration, however it is not yet implemented as runtime calibration.
+*** ToDo: Magnetic distortion detection is partially implemented. a) Earth's magnetic field strength does not change based on pose of sensor. If field strength changes during motion, a motor or field anomaly is present. b) if the compass based heading differs from the fusion computed yaw, there is an anomaly. The fusion algorithm should automatically turn off magnetometer input if there is an anomaly. 
 
 ## Features
 
@@ -53,8 +53,6 @@ If no SD card is available, EEPROM is used just to save magnetometer and acceler
 
 The actual RTIMULib and support libraries are in the library directory. The other top level directories contain example sketches.
 
-*** Important note ***
-It is essential to calibrate the magnetometers or else very poor results will obtained, especially with the MPU-9150 and MPU-9250. If odd results are being obtained, suspect the magnetometer calibration! Operating without calibration can be done but is not recommended.
 
 ## Note about magnetometer (compass) calibration
 
@@ -78,19 +76,26 @@ To build and run the example sketches, start the Teensyduino IDE and use File --
 
 where "..." represents the path to the RTIMULib2-Teensy directory. The directory is set up so that there's no need to copy the libraries into the main Arduino libraries directory although this can be done if desired.
 
+### Cube_Display
+This processing sketch displays the IMU as a box and shows numerical values in a window.
+It responds to some user key strokes and for example turns compass on/off with M/m.
+This visualization is useful to study how fast the pose follows motion and how well the motion detection algorithm works as one can observe very small motion. If compass is used for fusion, after rigorous motion, there usually is settling of the pose.
+
 ### BitBucketsIMU
 This sketch implements IMU for FRC team 4183 to communicate with RoboRIO and transmit data over USB interface.
-The sketch attempts reporting all data and has ability to turn on/off features of the fusion algorithm. It also estimates redisual acceleration in earth coordinate system and computes velocity and attempts a position estimation. A velocity and acceleration bias is computed as when the sensor comes to a halt velocity should be zero.
+The sketch attempts reporting all data and has ability to turn on/off features of the fusion algorithm and gyroscope bias computation. It also estimates redisual acceleration in earth coordinate system and computes velocity and attempts a position estimation. A velocity and acceleration bias is computed as when the sensor comes to a halt velocity should be zero.
+The sketch accepts single character commands such as s/S for streaming, m/M to disable/enable compass, a/A accelerometer, g/G gyroscope, v/V to switch between readable text display.
+In verbose mode, the max/min and bias calibration values are displayed. All vectors also display their length which is a performance indicator. For example if gyroscope is properly calibrated and the sensor is still the 9250 IMU has a residual of about 0.002 radians/sec. The compass rarely has a stability of better than 10% on the 9250. The accelerometer on the 9250 has about 10mg repeatability between on/off cycle but can be calibrated to about 5mg noise. Residual acceleration noise is about 0.02 m/s2 when the IMU is not moving. 
 
 ### TeensyMagCal
 This sketch can be used to calibrate the magnetometers and should be run before trying to generate fused pose data. It also needs to be rerun at any time that the configuration is changed (such as different IMU or different IMU reference orientation). Load the sketch and all three axis of the IMU towards North and along the magnetic field lines, making sure all axes reach their minima and maxima. The display will stop updating when this occurs. Then, enter 's' followed by enter into the IDE serial monitor to save the data.
 This calibration should be run in a distortion free environment.
 
 ### TeensyAccelCal
-This sketch allows updating the max min data of the calibration files and does not require the sensor to be aligned with one axis as it will proportionally change max & min values until the recorded acceleration is 1g.
+This sketch allows updating the max/min data of the calibration files and does not require the sensor to be aligned with one axis as it will proportionally change max & min values until the recorded acceleration is 1g.
 Make sure the sensor is still, then enable calibration by entering 'A'. After about a second enter 'a' and flip the compass towards opposite direction and repeat the process. Repeat this process until the sensor shows 1g in all possible directions.
 Enter 's' to save the data.
-Do not run autocalibration when you move the sensor!
+Do not run autocalibration or update max/min data when you move the sensor!
 
 ### TeensyGyroCal
 This will run the sensor for a while and then save the gyro bias values in the EEPROM. Bias values are update during runtime when the sensor is not moving.
