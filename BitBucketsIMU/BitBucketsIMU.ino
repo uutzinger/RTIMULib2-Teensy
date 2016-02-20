@@ -50,10 +50,10 @@ int sampleRate;
 
 // Controlling Reporting and Input Output
 bool REPORT=false;                                    // do we need to produce output data?
-bool STREAM=true;                                    // are we continously streaming output?
+bool STREAM=true;                                     // are we continously streaming output?
 bool INAVAIL=false;                                   // do we need to check for input ?
 bool VERBOSE=false;                                   // set HEX mode
-bool CUBE=true;                                      // set output format for processing cube display
+bool CUBE=false;                                      // set output format for 4183 Robot
 int  inByte = 0;                                      // serial input buffer, one byte
 
 // Fusion Status
@@ -173,7 +173,7 @@ void setup()
     imu->setGyroEnable(true);
     imu->setAccelEnable(true);
     imu->setCompassEnable(true);
-    settings->setDeclination(-10.0f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
+    settings->setDeclination(9.97f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
     
     //--Fusion
     bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
@@ -405,7 +405,7 @@ void loop()
             Serial.print(RTMath::displayRadians("Mag Max", settings->m_compassCalMax ));       // 
             Serial.print(RTMath::displayRadians("Mag Min", settings->m_compassCalMin ));       // 
             Serial.print(RTMath::displayRadians("Gyro Bias", settings->m_gyroBias ));       // 
-            // Serial.println(settings->m_compassAdjDeclination);
+            Serial.printf("Declination: %+4.3f \n", (settings->m_compassAdjDeclination/3.141f*180.0f));
             Serial.println("--Aux----");
             Serial.printf("IMU_T %+4.2f, ", imuData.IMUtemperature);
             Serial.printf("P %+4.2f, ",     imuData.pressure);

@@ -28,6 +28,7 @@
 #include "RTFusion.h"
 #include "RTIMULibDefs.h"
 #include "RTIMUSettings.h"
+#include "RunningAverage.h"
 
 //  Axis rotation defs
 //
@@ -185,7 +186,6 @@ public:
 	//  adjusts max/min accelerometer calibration to read 1g earth acceleration, only run when no motion
     void runtimeAdjustAccelCal();                           // adjusts accelerometer Max/Min so that scaler becomes 1
 
-	
 protected:
     void gyroBiasInit();                                    // sets up gyro bias calculation
     void handleGyroBias();                                  // adjust gyro for bias
@@ -219,15 +219,20 @@ protected:
     RTVector3 m_previousAccel;                              // previous step accel for gyro learningboo
     RTVector3 m_gyroBiasTemp;                               // current bias that is modified in the gyro learning algorithm
     RTVector3 m_gyroBiasCandidate;                          // bias that will become active once all exclusion criteria are met
-	bool m_noMotionStarted;										// the bias algorithm just started
-	
-	int m_EEPROMCount;									// measure how many no motions we had, save bias every 5 seconds of new motion
+	bool m_noMotionStarted;									// the bias algorithm just started
+    	
+	int m_EEPROMCount;										// measure how many no motions we had, save bias every 5 seconds of new motion
 	int m_intervalCount;									// make sure there is was motion for 0.1 secs until gyro bias is updated
 	bool m_previousMotion;									// to figure out if imu transitioned from motion to no motion
 
     float m_compassCalOffset[3];
     float m_compassCalScale[3];
+	
     RTVector3 m_compassAverage;                             // a running average to smooth the mag outputs
+
+	//RunningAverage m_compassAverageX(5);					// Average filter for Compass
+	//RunningAverage m_compassAverageY(5);					// Average filter for Compass
+	//RunningAverage m_compassAverageZ(5);					// Average filter for Compass
 
     bool m_runtimeMagCalValid;                              // true if the runtime mag calibration has valid data
     float m_runtimeMagCalMax[3];                            // runtime max mag values seen

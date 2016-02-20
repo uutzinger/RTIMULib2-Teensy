@@ -78,8 +78,29 @@ void loop()
 		    Serial.println("Enter s to save current data.");
         Serial.println("-------");
 		    Serial.printf("%s", RTMath::displayRadians("Gyro:", imuData.gyro));     // accel data
-        Serial.printf("%s", RTMath::displayRadians("Gyro Bias", settings->m_gyroBias));
-    	  Serial.printf("%s", imuData.motion ? "IMU is moving\n" : "IMU is still \n");  
+        if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
+        Serial.print(RTMath::displayRadians("Acc Max", settings->m_accelCalMax ));       // 
+        Serial.print(RTMath::displayRadians("Acc Min", settings->m_accelCalMin ));       // 
+        Serial.print(RTMath::displayRadians("Mag Max", settings->m_compassCalMax ));     // 
+        Serial.print(RTMath::displayRadians("Mag Min", settings->m_compassCalMin ));     // 
+        Serial.print(RTMath::displayRadians("Gyro Bias", settings->m_gyroBias ));      // 
+        Serial.printf("Declination: %+4.3f \n", (settings->m_compassAdjDeclination/3.141*180.0));
+        if (imu->IMUGyroBiasValid())
+            Serial.print("Gyro bias valid");
+        else
+            Serial.print("Calculating gyro bias");
+        if (!imu->getCompassCalibrationValid()) {
+            if (imu->getRuntimeCompassCalibrationValid())
+                Serial.print(", runtime mag cal valid");
+            else     
+                Serial.print(", runtime mag cal not valid");
+        } else {
+                Serial.print(", EEPROM mag cal valid");
+        }
+        if (settings->m_accelCalValid)
+            Serial.println(", accel cal valid");
+        else
+            Serial.println(", no accel cal");
 	  }
   
     if (Serial.available()) {

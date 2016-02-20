@@ -40,6 +40,7 @@
 #include "RTIMULSM9DS1.h"
 #include "RTIMUBMX055.h"
 #include "RTIMUBNO055.h"
+#include "RunningAverage.h"
 
 //  this sets the learning rate for compass and accelerometer running average calculation
 // 0.2 original
@@ -58,7 +59,7 @@
 #define RTIMU_FUZZY_GYRO_BIAS      0.02
 
 //  this defines the accelerometer noise level
-#define RTIMU_FUZZY_ACCEL_ZERO      0.007
+#define RTIMU_FUZZY_ACCEL_ZERO     0.007
 
 //  Axis rotation arrays
 
@@ -541,6 +542,14 @@ void RTIMU::calibrateAverageCompass()
 
     //  update running average
 
+	//m_compassAverageX.addValue(m_imuData.compass.x());
+	//m_compassAverageY.addValue(m_imuData.compass.y());
+	//m_compassAverageZ.addValue(m_imuData.compass.z());
+	
+	//m_imuData.compass.setX(m_compassAverageX.getAverage());
+	//m_imuData.compass.setY(m_compassAverageY.getAverage());
+	//m_imuData.compass.setZ(m_compassAverageZ.getAverage());
+	
     m_compassAverage.setX(m_imuData.compass.x() * COMPASS_ALPHA + m_compassAverage.x() * (1.0 - COMPASS_ALPHA));
     m_compassAverage.setY(m_imuData.compass.y() * COMPASS_ALPHA + m_compassAverage.y() * (1.0 - COMPASS_ALPHA));
     m_compassAverage.setZ(m_imuData.compass.z() * COMPASS_ALPHA + m_compassAverage.z() * (1.0 - COMPASS_ALPHA));

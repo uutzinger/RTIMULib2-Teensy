@@ -507,7 +507,8 @@ void RTIMUSettings::setDefaults()
     m_MPU9150CompassSampleRate = 25;
     m_MPU9150GyroAccelLpf = MPU9150_LPF_20;
     m_MPU9150GyroFsr = MPU9150_GYROFSR_1000;
-    m_MPU9150AccelFsr = MPU9150_ACCELFSR_8;
+    //m_MPU9150AccelFsr = MPU9150_ACCELFSR_8;
+    m_MPU9150AccelFsr = MPU9150_ACCELFSR_2;
 
     //  MPU9250 defaults
 
@@ -516,7 +517,8 @@ void RTIMUSettings::setDefaults()
     m_MPU9250GyroLpf = MPU9250_GYRO_LPF_41;    // 41Hz Lowpass
     m_MPU9250AccelLpf = MPU9250_ACCEL_LPF_41;  // 41Hz Lowpass
     m_MPU9250GyroFsr = MPU9250_GYROFSR_1000;   // +/- 1000 deg/sec
-    m_MPU9250AccelFsr = MPU9250_ACCELFSR_8;    // +/- 8g
+    //m_MPU9250AccelFsr = MPU9250_ACCELFSR_8;    // +/- 8g
+    m_MPU9250AccelFsr = MPU9250_ACCELFSR_2;    // +/- 2g
 
     //  GD20HM303D defaults
 
