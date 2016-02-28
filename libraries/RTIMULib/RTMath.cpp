@@ -224,6 +224,13 @@ RTVector3& RTVector3::operator =(const RTVector3& vec)
     return *this;
 }
 
+RTVector3& RTVector3::operator =(const RTFLOAT val)
+{
+    for (int i = 0; i < 3; i++)
+        m_data[i] = val;
+    return *this;
+}
+
 RTVector3& RTVector3::operator +=(const RTFLOAT val)
 {
     for (int i = 0; i < 3; i++)

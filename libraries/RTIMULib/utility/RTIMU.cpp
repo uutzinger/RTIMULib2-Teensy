@@ -62,7 +62,6 @@
 #define RTIMU_FUZZY_ACCEL_ZERO     0.007
 
 //  Axis rotation arrays
-
 float RTIMU::m_axisRotation[RTIMU_AXIS_ROTATION_COUNT][9] = {
     {1, 0, 0, 0, 1, 0, 0, 0, 1},                    // RTIMU_XNORTH_YEAST
     {0, -1, 0, 1, 0, 0, 0, 0, 1},                   // RTIMU_XEAST_YSOUTH
@@ -148,11 +147,16 @@ RTIMU::RTIMU(RTIMUSettings *settings)
     m_accelCalibrationMode = false;
     m_runtimeMagCalValid = false;
  
-    for (int i = 0; i < 3; i++) {
-        m_runtimeMagCalMax[i] = -1000;
-        m_runtimeMagCalMin[i] = 1000;
-    }
-    m_gyroCalibrationMode = false;
+    m_runtimeMagCalMax = -1000.0f;
+    m_runtimeMagCalMin =  1000.0f;
+    //m_runtimeMagCalMax.setX(-1000);
+    //m_runtimeMagCalMax.setY(-1000);
+    //m_runtimeMagCalMax.setZ(-1000);
+    //m_runtimeMagCalMin.setX( 1000);
+    //m_runtimeMagCalMin.setY( 1000);
+    //m_runtimeMagCalMin.setZ( 1000);
+
+	m_gyroCalibrationMode = false;
     m_temperatureCalibrationMode = false;
 
 	m_gyroRunTimeCalibrationEnable = true;
@@ -177,14 +181,25 @@ RTIMU::RTIMU(RTIMUSettings *settings)
         break;
     }
     HAL_INFO1("Using fusion algorithm %s\n", RTFusion::fusionName(m_settings->m_fusionType));
+	
+	m_compassAverageX = new RunningAverage(20); // 0.1f * m_sampleRate;
+	m_compassAverageY = new RunningAverage(20);
+	m_compassAverageZ = new RunningAverage(20);
 }
 
 RTIMU::~RTIMU()
 {
     delete m_fusion;
+    delete m_compassAverageX;
+    delete m_compassAverageY;
+    delete m_compassAverageZ;
     m_fusion = NULL;
+	m_compassAverageX = NULL;
+	m_compassAverageY = NULL;
+	m_compassAverageZ = NULL;
 }
 
+	
 void RTIMU::setCalibrationData()
 {
     float maxDelta = -1;
@@ -418,7 +433,7 @@ void RTIMU::handleGyroBias()
 			} // end noMotion has been going on for more than interval
 		} //  no motion
 
-		// store new bias every 5 seconds in EEPROM
+		// store new bias every 60 seconds in EEPROM
 		m_EEPROMCount++;
 		if (m_EEPROMCount >= (60 * m_sampleRate)) {
 			m_EEPROMCount = 0;
@@ -438,35 +453,35 @@ void RTIMU::calibrateAverageCompass()
 {
     //  see if need to do runtime mag calibration (i.e. no stored calibration data)
 
-    if (!m_compassCalibrationMode && !m_settings->m_compassCalValid) {
+    if ((!m_compassCalibrationMode && !m_settings->m_compassCalValid) || (m_compassRunTimeCalibrationEnable)) {
         // try runtime calibration
         bool changed = false;
 
         // see if there is a new max or min
 
-        if (m_runtimeMagCalMax[0] < m_imuData.compass.x()) {
-            m_runtimeMagCalMax[0] = m_imuData.compass.x();
+        if (m_runtimeMagCalMax.x() < m_imuData.compass.x()) {
+            m_runtimeMagCalMax.setX( m_imuData.compass.x());
             changed = true;
         }
-        if (m_runtimeMagCalMax[1] < m_imuData.compass.y()) {
-            m_runtimeMagCalMax[1] = m_imuData.compass.y();
+        if (m_runtimeMagCalMax.y() < m_imuData.compass.y()) {
+            m_runtimeMagCalMax.setY( m_imuData.compass.y());
             changed = true;
         }
-        if (m_runtimeMagCalMax[2] < m_imuData.compass.z()) {
-            m_runtimeMagCalMax[2] = m_imuData.compass.z();
+        if (m_runtimeMagCalMax.z() < m_imuData.compass.z()) {
+            m_runtimeMagCalMax.setZ( m_imuData.compass.z());
             changed = true;
         }
 
-        if (m_runtimeMagCalMin[0] > m_imuData.compass.x()) {
-            m_runtimeMagCalMin[0] = m_imuData.compass.x();
+        if (m_runtimeMagCalMin.x() > m_imuData.compass.x()) {
+            m_runtimeMagCalMin.setX( m_imuData.compass.x());
             changed = true;
         }
-        if (m_runtimeMagCalMin[1] > m_imuData.compass.y()) {
-            m_runtimeMagCalMin[1] = m_imuData.compass.y();
+        if (m_runtimeMagCalMin.y() > m_imuData.compass.y()) {
+            m_runtimeMagCalMin.setY( m_imuData.compass.y());
             changed = true;
         }
-        if (m_runtimeMagCalMin[2] > m_imuData.compass.z()) {
-            m_runtimeMagCalMin[2] = m_imuData.compass.z();
+        if (m_runtimeMagCalMin.z() > m_imuData.compass.z()) {
+            m_runtimeMagCalMin.setZ( m_imuData.compass.z());
             changed = true;
         }
 
@@ -481,8 +496,8 @@ void RTIMU::calibrateAverageCompass()
 
                 for (int i = 0; i < 3; i++)
                 {
-                    delta = m_runtimeMagCalMax[i] - m_runtimeMagCalMin[i];
-                    if ((delta < RTIMU_RUNTIME_MAGCAL_RANGE) || (m_runtimeMagCalMin[i] > 0) || (m_runtimeMagCalMax[i] < 0))
+                    delta = m_runtimeMagCalMax.data(i) - m_runtimeMagCalMin.data(i);
+                    if ((delta < RTIMU_RUNTIME_MAGCAL_RANGE) || (m_runtimeMagCalMin.data(i) > 0) || (m_runtimeMagCalMax.data(i) < 0))
                     {
                         m_runtimeMagCalValid = false;
                         break;
@@ -496,9 +511,9 @@ void RTIMU::calibrateAverageCompass()
                 float magMaxDelta = -1;
 
                 for (int i = 0; i < 3; i++) {
-                    if ((m_runtimeMagCalMax[i] - m_runtimeMagCalMin[i]) > magMaxDelta)
+                    if ((m_runtimeMagCalMax.data(i) - m_runtimeMagCalMin.data(i)) > magMaxDelta)
                     {
-                        magMaxDelta = m_runtimeMagCalMax[i] - m_runtimeMagCalMin[i];
+                        magMaxDelta = m_runtimeMagCalMax.data(i) - m_runtimeMagCalMin.data(i);
                     }
                 }
 
@@ -508,10 +523,14 @@ void RTIMU::calibrateAverageCompass()
 
                 for (int i = 0; i < 3; i++)
                 {
-                    delta = (m_runtimeMagCalMax[i] - m_runtimeMagCalMin[i]) / 2.0;
+                    delta = (m_runtimeMagCalMax.data(i) - m_runtimeMagCalMin.data(i)) / 2.0;
                     m_compassCalScale[i] = magMaxDelta / delta;
-                    m_compassCalOffset[i] = (m_runtimeMagCalMax[i] + m_runtimeMagCalMin[i]) / 2.0;
+                    m_compassCalOffset[i] = (m_runtimeMagCalMax.data(i) + m_runtimeMagCalMin.data(i)) / 2.0;
                 }
+				
+				m_settings->m_accelCalMax = m_runtimeMagCalMax;
+				m_settings->m_accelCalMin = m_runtimeMagCalMin;
+				
             }
         }
     }
@@ -542,20 +561,38 @@ void RTIMU::calibrateAverageCompass()
 
     //  update running average
 
-	//m_compassAverageX.addValue(m_imuData.compass.x());
-	//m_compassAverageY.addValue(m_imuData.compass.y());
-	//m_compassAverageZ.addValue(m_imuData.compass.z());
+	m_compassAverageX->addValue(m_imuData.compass.x());
+	m_compassAverageY->addValue(m_imuData.compass.y());
+	m_compassAverageZ->addValue(m_imuData.compass.z());
 	
-	//m_imuData.compass.setX(m_compassAverageX.getAverage());
-	//m_imuData.compass.setY(m_compassAverageY.getAverage());
-	//m_imuData.compass.setZ(m_compassAverageZ.getAverage());
-	
-    m_compassAverage.setX(m_imuData.compass.x() * COMPASS_ALPHA + m_compassAverage.x() * (1.0 - COMPASS_ALPHA));
-    m_compassAverage.setY(m_imuData.compass.y() * COMPASS_ALPHA + m_compassAverage.y() * (1.0 - COMPASS_ALPHA));
-    m_compassAverage.setZ(m_imuData.compass.z() * COMPASS_ALPHA + m_compassAverage.z() * (1.0 - COMPASS_ALPHA));
+	//Serial.println(m_compassAverageX->getAverage() - m_imuData.compass.x());
+	//Serial.println(m_compassAverageY->getAverage() - m_imuData.compass.y());
+	//Serial.println(m_compassAverageZ->getAverage() - m_imuData.compass.z());
 
-    m_imuData.compass = m_compassAverage;
+	m_imuData.compass.setX(m_compassAverageX->getAverage());
+	m_imuData.compass.setY(m_compassAverageY->getAverage());
+	m_imuData.compass.setZ(m_compassAverageZ->getAverage());
 	
+    //m_compassAverage.setX(m_imuData.compass.x() * COMPASS_ALPHA + m_compassAverage.x() * (1.0 - COMPASS_ALPHA));
+    //m_compassAverage.setY(m_imuData.compass.y() * COMPASS_ALPHA + m_compassAverage.y() * (1.0 - COMPASS_ALPHA));
+    //m_compassAverage.setZ(m_imuData.compass.z() * COMPASS_ALPHA + m_compassAverage.z() * (1.0 - COMPASS_ALPHA));
+    //
+    //m_imuData.compass = m_compassAverage;
+	
+}
+
+void RTIMU::resetCompassRunTimeMaxMin()
+{
+    m_runtimeMagCalMax = -1000.0f;
+    m_runtimeMagCalMin =  1000.0f;
+
+    //m_runtimeMagCalMax.setX(-1000.0);
+    //m_runtimeMagCalMax.setY(-1000.0);
+    //m_runtimeMagCalMax.setZ(-1000.0);
+    //m_runtimeMagCalMin.setX( 1000.0);
+    //m_runtimeMagCalMin.setY( 1000.0);
+    //m_runtimeMagCalMin.setZ( 1000.0);
+	//m_runtimeMagCalValid = false;
 }
 
 void RTIMU::calibrateAccel()

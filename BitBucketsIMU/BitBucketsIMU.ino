@@ -54,6 +54,8 @@ bool STREAM=true;                                     // are we continously stre
 bool INAVAIL=false;                                   // do we need to check for input ?
 bool VERBOSE=false;                                   // set HEX mode
 bool CUBE=false;                                      // set output format for 4183 Robot
+bool ACCELCALIBRATE = false;
+
 int  inByte = 0;                                      // serial input buffer, one byte
 
 // Fusion Status
@@ -111,8 +113,9 @@ RTVector3 worldVelocityBias;                          // velocity bias computed 
 RTVector3 worldVelocityPrevious;                      // for trapezoidal integration of velocity
 RTVector3 worldLocation;                              // integrated velocity
 RTQuaternion gravity;
+RTVector3 tempVec;
 
-bool lastMotion=false, motionStarted=false, noMotionStarted=false;
+bool lastMotion=false, motionStarted=false, motionEnded=false;
 
 void setup()
 {
@@ -180,7 +183,7 @@ void setup()
     bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
     bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
     bitWrite(fusionStatus, STATE_FUSION_MOVING,        false );
-
+    
     // House keeping & Initializing
     lastDisplay = lastRate = lastTimestamp = lastInAvail = micros();
     sampleCount = 0;
@@ -231,6 +234,7 @@ void loop()
     RTQuaternion fusedConjugate;
     RTQuaternion qTemp;
     float residualsAlpha;
+    float biasAlpha;
     
     if (imu->IMURead()) {                       // get the latest data if any avail
         imuData = imu->getIMUData();
@@ -247,6 +251,7 @@ void loop()
           //Magnetic anomaly detected because magnetic field differs more than 19% from target value
         };
         compassHeading=imuData.fusionQPose.toHeading(imuData.compass, settings->m_compassAdjDeclination);
+        compassHeading_avg.addValue(compassHeading);
 		    compassHeadingDelta = lastCompassHeading - compassHeading;
     		lastCompassHeading = compassHeading;
     		yawDelta = lastYaw - imuData.fusionPose.z();
@@ -258,7 +263,14 @@ void loop()
    			//  Probably too late to adjust here as value was already inserted into fusion algorithm
    			//  imu->setCompassEnable(false);
     		//}
-    
+
+        ////////////////////////////////////////////////////////////////////////////////
+        // Calibration
+        ////////////////////////////////////////////////////////////////////////////////
+        if (ACCELCALIBRATE) imu->runtimeAdjustAccelCal();
+        // gyroscope calibrtion is built into imu software, therefore no step needed here if actiacted
+        // magnetometer calibration is built into imu software, therefore no step needed here if activated
+
         ////////////////////////////////////////////////////////////////////////////////
         // Motion Computations
         ////////////////////////////////////////////////////////////////////////////////
@@ -277,16 +289,17 @@ void loop()
         // At end of a motion period, acceleration needs to be zero
         // During no motion, acceleration should be zero
         motionStarted = (imuData.motion && !lastMotion); // is 1 if motion started
-        noMotionStarted   = (!imuData.motion && lastMotion); // is 1 if motion ended
+        motionEnded   = (!imuData.motion && lastMotion); // is 1 if motion ended
         lastMotion = imuData.motion;
 
         // Accumulate residual acceleration during no motion to compute an acceleration bias
         // prepare for bias computation
         if (motionStarted) { motionstart = imuData.timestamp; }
-        if (noMotionStarted) {
-          intervalCount=0;
-          residualsBiasTemp      = residualsBias;
-          residualsBiasCandidate = residualsBias;
+
+        if (motionEnded) {
+          intervalCount=0; 
+          residualsBiasTemp      = residualsBias; // update bias
+          residualsBiasCandidate = residualsBias; // update bias candidate
           firstTime = true;
         }
 		
@@ -298,13 +311,13 @@ void loop()
           intervalCount++;
           if (intervalCount >= 10){         // work in intervals for 10, discard first and last interval.
             intervalCount = 0;
-            residualsBias          = residualsBiasCandidate;
+            residualsBias          = residualsBiasCandidate; 
             residualsBiasCandidate = residualsBiasTemp;
             firstTime = false;
           } // 
-          if (firstTime==false) {
-              RTVector3 residualsTemp=(residuals-residualsBiasTemp);
-              if (residualsTemp.length() > 0.1f ) { residualsAlpha = 0.02f; } else { residualsAlpha = 0.002f; } // fast or regual learning
+          if (firstTime==false) { // update residualsbias
+              RTVector3 residualsTemp=(residuals-residualsBiasTemp); // should be close to zero as there is no motion
+              if (residualsTemp.length() > 0.1f ) { residualsAlpha = 0.02f; } else { residualsAlpha = 0.002f; } // fast (not close to zero) or regual learning (when close to zero)
               residualsBiasTemp = residualsBiasTemp * (1.0f-residualsAlpha) + residuals * residualsAlpha;       // update average residual acceleration
           } // update bias
         } // no motion
@@ -319,16 +332,17 @@ void loop()
         worldVelocity = worldVelocityPrevious + ((worldResiduals + worldResidualsPrevious)*0.5f*(float(dt)  * 0.000001f)); // dt is in microseconds 
         // Update Velocity Bias
         // When motion ends, velocity should be zero
-        if (noMotionStarted) {
-          dtmotion = (float(imuData.timestamp-motionstart))/1.0E6; // in seconds
+        if (motionEnded) {
+          dtmotion = (float(imuData.timestamp-motionstart))* 0.000001f; // in seconds
           if (dtmotion > 0.5f) { // update velocity bias if we had at least half of second motion
-            worldVelocityBias=worldVelocity/dtmotion;
-            // could use some learning averaging here with previous values and weigthing long motions more than short ones
+            if (dtmotion > 10.0f) { biasAlpha = 0.2f; } else { biasAlpha = 0.2f * (dtmotion/10.0f); }
+            worldVelocityBias = worldVelocityBias * (1.0f-biasAlpha) + (worldVelocity * biasAlpha);       // update average residual acceleration
           }
         }
         // Update Velocity
-        worldVelocity = worldVelocity - ( worldVelocityBias * (float(dt) * 0.000001f) );
-        // Avoid Velocity Bias
+        worldVelocity = worldVelocity - worldVelocityBias;
+
+        // Velocity is zero if there is no motion
         if (imuData.motion == false) {     // its not moving
           worldVelocity.zero();            // minimize error propagation
         }
@@ -366,30 +380,11 @@ void loop()
         ///////////////////////////////////////////////////////////////
         if (REPORT) {
           if (VERBOSE) {
-            // currentTime=micros();
-            Serial.println("-System--");
-            Serial.print("Sample rate: "); Serial.print(sampleRate);
-            if (imu->IMUGyroBiasValid())
-                Serial.print(", gyro bias valid");
-            else
-                Serial.print(", calculating gyro bias");
-            if (!imu->getCompassCalibrationValid()) {
-                if (imu->getRuntimeCompassCalibrationValid())
-                    Serial.print(", runtime mag cal valid");
-                else     
-                    Serial.print(", runtime mag cal not valid");
-            } else {
-                    Serial.print(", EEPROM mag cal valid");
-            }
-            if (imu->getAccelCalibrationValid())
-                Serial.println(", accel cal valid");
-            else
-                Serial.println(", no accel cal");
             Serial.println("-Data----");
             Serial.print(RTMath::displayRadians("Gyro [r/s]", imuData.gyro));      // gyro data
             Serial.print(RTMath::displayRadians("Accel  [g]", imuData.accel));     // accel data
             imuData.compass=imuData.compass*magFieldNormScale;                 // compass in uT
-            Serial.print(RTMath::displayRadians("Mag [uT]", imuData.compass));     // compass data
+            Serial.print(RTMath::displayRadians("Mag   [uT]", imuData.compass));     // compass data
             Serial.print(RTMath::displayDegrees("Pose", imuData.fusionPose)); // fused output
             gyro_avg.addValue(imuData.gyro.length());
             accel_avg.addValue(imuData.accel.length());
@@ -397,15 +392,23 @@ void loop()
             Serial.printf("Average Gyro: %+4.3f, ", gyro_avg.getAverage());
             Serial.printf("Accel: %+4.3f, ", accel_avg.getAverage());
             Serial.printf("Compass: %+4.3f \n", compass_avg.getAverage());
-
             Serial.println("--Calib--");
             if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
             Serial.print(RTMath::displayRadians("Acc Max", settings->m_accelCalMax ));       // 
             Serial.print(RTMath::displayRadians("Acc Min", settings->m_accelCalMin ));       // 
-            Serial.print(RTMath::displayRadians("Mag Max", settings->m_compassCalMax ));       // 
-            Serial.print(RTMath::displayRadians("Mag Min", settings->m_compassCalMin ));       // 
-            Serial.print(RTMath::displayRadians("Gyro Bias", settings->m_gyroBias ));       // 
+            Serial.print(RTMath::displayRadians("Mag Max", settings->m_compassCalMax ));     // 
+            Serial.print(RTMath::displayRadians("Mag Min", settings->m_compassCalMin ));     // 
+            tempVec = imu->getCompassRunTimeMagCalMax();
+            Serial.print(RTMath::displayRadians("Runtime Mag Max", tempVec ));     // 
+            tempVec = imu->getCompassRunTimeMagCalMin();
+            Serial.print(RTMath::displayRadians("Runtime Mag Min", tempVec ));     // 
+            Serial.print(RTMath::displayRadians("Gyro Bias", settings->m_gyroBias ));        // 
             Serial.printf("Declination: %+4.3f \n", (settings->m_compassAdjDeclination/3.141f*180.0f));
+            Serial.print("Runtime Calibrating: ");
+            Serial.printf("%s", ACCELCALIBRATE ? "Accelerometer, " : "");  
+            Serial.printf("%s", imu->getCompassRunTimeCalibrationEnable() ? "Compass, " : "");
+            Serial.printf("%s", imu->getGyroRunTimeCalibrationEnable() ? "Gyroscope" : "");  
+            Serial.println(".");
             Serial.println("--Aux----");
             Serial.printf("IMU_T %+4.2f, ", imuData.IMUtemperature);
             Serial.printf("P %+4.2f, ",     imuData.pressure);
@@ -428,11 +431,10 @@ void loop()
             Serial.printf("AUXHT: %i ", bitRead(systemStatusAUX, STATE_HUMIDITYTEMPVALID));
             Serial.println();
             Serial.println("-Fusion--Run Time-");
-            Serial.printf("G:     %i ", bitRead(fusionStatus, STATE_FUSION_GYROENABLE));
-            Serial.printf("A:     %i ", bitRead(fusionStatus, STATE_FUSION_ACCELENABLE));
-            Serial.printf("C:     %i ", bitRead(fusionStatus, STATE_FUSION_COMPASSENABLE));
-            Serial.printf("Grt:   %i ", bitRead(systemStatusIMU, STATE_GYRORUNTIMEUPDATE));
-            Serial.printf("Crt:   %i ", bitRead(systemStatusIMU, STATE_COMPASSRUNTIMEUPDATE));
+            Serial.print("Fusion using: ");
+            Serial.printf("%s", bitRead(fusionStatus, STATE_FUSION_GYROENABLE) ? "Gyroscope " : "");  
+            Serial.printf("%s", bitRead(fusionStatus, STATE_FUSION_ACCELENABLE) ? "Accelerometer " : "");
+            Serial.printf("%s", bitRead(fusionStatus, STATE_FUSION_COMPASSENABLE) ? "Compass" : "");  
             Serial.println();
             Serial.println("-Motion--");
             Serial.print(RTMath::displayRadians("Residuals          [m/s2]", residuals));           // Residuals in device coordiante system
@@ -442,9 +444,28 @@ void loop()
             Serial.print(RTMath::displayRadians("World Velocity Bias [m/s]", worldVelocityBias));   // Velocity bias in world coordiante system
             Serial.print(RTMath::displayRadians("World Position        [m]", worldLocation));       // Location in world coordiante system
             residuals_avg.addValue(residuals.length());
-            Serial.printf("Average Residuals Length: %+4.3f, ", residuals_avg.getAverage());
+            Serial.printf("Average Residuals Length: %+4.3f \n", residuals_avg.getAverage());
+            Serial.println("-System--");
+            Serial.print("Sample rate: "); Serial.print(sampleRate);
+            if (imu->IMUGyroBiasValid())
+                Serial.print(", Gyro bias valid");
+            else
+                Serial.print(", Calculating gyro bias");
+            if (!imu->getCompassCalibrationValid()) {
+                if (imu->getRuntimeCompassCalibrationValid())
+                    Serial.print(", Runtime mag cal valid");
+                else     
+                    Serial.print(", Runtime mag cal not valid");
+            } else {
+                    Serial.print(", EEPROM mag cal valid");
+            }
+            if (imu->getAccelCalibrationValid())
+                Serial.println(", EEPROM Accel cal valid");
+            else
+                Serial.println(", No accel cal");
             Serial.print("Data Transmission Time [us]: ");
             Serial.println((micros()-currentTime)); // takes about 4ms to send the data
+            Serial.println("-End-----");
           } else {
             if (CUBE) {
               CubeUpdate();
@@ -454,7 +475,8 @@ void loop()
           } // ASCII
         } // report
     } // imuread
-  
+
+      
     ///////////////////////////////////////////////////////////////
     // Input Commands
     ///////////////////////////////////////////////////////////////
@@ -462,30 +484,24 @@ void loop()
       if (Serial.available()) {
         inByte=Serial.read();
         // ENABLE/DISABLE FUSION ALGORITHM INPUTS
-        if        (inByte == 'm') {      // turn off Compass Fusion
+        if (inByte == 'm') {        // turn off Compass Fusion
           imu->setCompassEnable(false);;
           bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
         } else if (inByte == 'M') { // turn on  Compass Fusion
           imu->setCompassEnable(true);
           bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
-        } else if (inByte == 'a') {      // turn off Accelerometer Fusion
+        } else if (inByte == 'a') { // turn off Accelerometer Fusion
           imu->setAccelEnable(false);
           bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
         } else if (inByte == 'A') { // turn on Accelerometer Fusion
           imu->setAccelEnable(true);
           bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
-        } else if (inByte == 'g') {      // turn off Gyroscope Fusion
+        } else if (inByte == 'g') { // turn off Gyroscope Fusion
           imu->setGyroEnable(false);
           bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
         } else if (inByte == 'G') { // turn on Gyroscope Fusion
           imu->setGyroEnable(true);
           bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
-        } else if (inByte == 'r') { // turn on Gyroscope Fusion
-          imu->setGyroRunTimeCalibrationEnable(false);
-          bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
-        } else if (inByte == 'R') { // turn on Gyroscope Fusion
-          imu->setGyroRunTimeCalibrationEnable(true);
-          bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
         } else if (inByte == 's') { // turn off streaming
           STREAM=false;
         } else if (inByte == 'S') { // turn on  streaming
@@ -500,9 +516,57 @@ void loop()
           CUBE=true;
         } else if (inByte == 'B') { // send Bit Buckets HEX
           CUBE=false;
-        } else if (inByte == '?') { // send STATE information
-          HEXsendIMUStatus();
-          HEXsendFusionStatus();
+        } else if (inByte == 'w') { // save the calibration data
+          settings->saveSettings();
+        } else if (inByte == 'r') { // turn off Gyroscope runtime calibration
+          imu->setGyroRunTimeCalibrationEnable(false);
+          bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+        } else if (inByte == 'R') { // turn on Gyroscope runtime calibration
+          imu->setGyroRunTimeCalibrationEnable(true);
+          bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+        } else if (inByte == 'c') { // accelerometer runtime calibration off
+            ACCELCALIBRATE=false;
+        } else if (inByte == 'C') { // accelerometer runtime calibration on
+            ACCELCALIBRATE=true;
+            // gyroscope saves settings automatically, turn it off
+            imu->setGyroRunTimeCalibrationEnable(false);
+            bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+        } else if (inByte == 'u') { // compass max/min calibration off
+            imu->setCompassRunTimeCalibrationEnable(false);
+        } else if (inByte == 'U') { // compass max/min calibration on
+            imu->setCompassRunTimeCalibrationEnable(true);
+            // gyroscope saves settings automatically, turn it off
+            imu->setGyroRunTimeCalibrationEnable(false);
+            bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+        } else if (inByte == 'i') {
+            imu->resetCompassRunTimeMaxMin();
+        } else if ((inByte == '?') || (inByte == 'h')) { // send HELP information
+            // Menu
+            Serial.println("--HELP---");
+            Serial.println("You can turn on/off gyro, accelerometer, compass input into fusion algorithm.");  
+            Serial.println("m/M to disable/enable compass       in fusion algorithem");
+            Serial.println("g/G to disable/enable gyroscope     in fusion algorithem");
+            Serial.println("a/A to disable/enable accelerometer in fusion algorithem");
+            Serial.println("You can turn on/off data streaming and adjust data format");
+            Serial.println("s/S to disable/enable data streaming");
+            Serial.println("v/V to disable/enable human readable data display");
+            Serial.println("b/B to set minimal/maximal HEX streaming (B) is needed for cube display");
+            Serial.println("-----");
+            Serial.println("P   to reset current position");
+            Serial.println("--Calibration---");
+            Serial.println("To calibrate accelerometer, move sensor to a few different postions and activate calibration.");
+            Serial.println("Make sure accelerometer calibration is off when you move the sensor.");
+            Serial.println("c/C to deactive/activate runtime acceleration calibration.");
+            Serial.println("Gyroscope calibration can run in the background.");
+            Serial.println("r/R to deactive/activate runtime gyroscope bias update");
+            Serial.println("Compass calibration needs to be completed for all axes before fusion operates correctly.");
+            Serial.println("u/U to deactive/activate runtime compass Max/Min update");
+            Serial.println("i to reset compass runtime max/min");
+            Serial.println("w to save current calibration data. It will be loaded next time you restart the sensor");
+            Serial.println("-----");
+            Serial.println("Press S to continue. Streaming was turned off to hold this diplay.");
+            Serial.println("--HELP END---");
+            STREAM=false;
         }
       } // end if serial input available
     } // end INAVAIL
@@ -603,7 +667,7 @@ void HEXsendR() {
 }
 
 void HEXsendH() {
-    serialFloatPrint(compassHeading); Serial.print(',');
+    serialFloatPrint(compassHeading_avg.getAverage()); Serial.print(',');
 }
 
 void HEXsendWR() {

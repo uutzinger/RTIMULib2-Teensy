@@ -95,6 +95,7 @@ public:
     RTVector3& operator /=(const RTFLOAT val);
 
     RTVector3& operator =(const RTVector3& vec);
+    RTVector3& operator =(const RTFLOAT val);
     const RTVector3 operator *(const RTVector3& qb) const;
     const RTVector3 operator *(const RTFLOAT val) const;
 //    const RTVector3 operator /(const RTVector3& qb) const;

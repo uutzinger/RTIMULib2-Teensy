@@ -79,13 +79,17 @@ where "..." represents the path to the RTIMULib2-Teensy directory. The directory
 ### Cube_Display
 This processing sketch displays the IMU as a box and shows numerical values in a window.
 It responds to some user key strokes and for example turns compass on/off with M/m.
-This visualization is useful to study how fast the pose follows motion and how well the motion detection algorithm works as one can observe very small motion. If compass is used for fusion, after rigorous motion, there usually is settling of the pose.
+This visualization is useful to study how fast the pose follows motion and how well the motion detection algorithm works as one can observe very small motion using this program. If compass is used for fusion, after rigorous motion, there usually is settling of the pose.
 
 ### BitBucketsIMU
 This sketch implements IMU for FRC team 4183 to communicate with RoboRIO and transmit data over USB interface.
-The sketch attempts reporting all data and has ability to turn on/off features of the fusion algorithm and gyroscope bias computation. It also estimates redisual acceleration in earth coordinate system and computes velocity and attempts a position estimation. A velocity and acceleration bias is computed as when the sensor comes to a halt velocity should be zero.
+The sketch attempts reporting all data and has ability to turn on/off features of the fusion algorithm and gyroscope bias computation. It also estimates residual acceleration in earth coordinate system and computes velocity and attempts a position estimation. A velocity and acceleration bias is computed as when the sensor comes to a halt velocity should be zero.
 The sketch accepts single character commands such as s/S for streaming, m/M to disable/enable compass, a/A accelerometer, g/G gyroscope, v/V to switch between readable text display.
 In verbose mode, the max/min and bias calibration values are displayed. All vectors also display their length which is a performance indicator. For example if gyroscope is properly calibrated and the sensor is still the 9250 IMU has a residual of about 0.002 radians/sec. The compass rarely has a stability of better than 10% on the 9250. The accelerometer on the 9250 has about 10mg repeatability between on/off cycle but can be calibrated to about 5mg noise. Residual acceleration noise is about 0.02 m/s2 when the IMU is not moving. 
+Three calibration procedures have been built in:
+1) Gyroscope calibration can be run in the background and is constantly updated when the sensor is not moving. It is better to calibrate it when one knows there is no movement and then to turn off the gyroscope calibration.
+2) Accelerometer calibration can be engaged when the sensor is held still. Ideally it is moved to a few different poses and when calibration is activated it will adjust values until 1g is read. Repeat the calibration a few times in all three directions in positive and negative direction. Axes do not need to be aligned perfectly.
+3) Compass calibration. The new version of RTIMU has realtime compass calibration. This routine is activated and one will need to rotate the sensor to the maximum and minimum readings in all directions. Please be aware that magnetic field points into ground on northern hemisphere as well as towards north.
 
 ### TeensyMagCal
 This sketch can be used to calibrate the magnetometers and should be run before trying to generate fused pose data. It also needs to be rerun at any time that the configuration is changed (such as different IMU or different IMU reference orientation). Load the sketch and all three axis of the IMU towards North and along the magnetic field lines, making sure all axes reach their minima and maxima. The display will stop updating when this occurs. Then, enter 's' followed by enter into the IDE serial monitor to save the data.

@@ -114,10 +114,12 @@ public:
 	void setGyroRunTimeCalibrationEnable(bool enable) { m_gyroRunTimeCalibrationEnable = enable;}
     void setAccelRunTimeCalibrationEnable(bool enable) { m_accelRunTimeCalibrationEnable = enable;}
     void setCompassRunTimeCalibrationEnable(bool enable) { m_compassRunTimeCalibrationEnable = enable;}
-	const bool getGyroRunTimeCalibrationEnable() { return m_gyroRunTimeCalibrationEnable;}
-    const bool getAccelRunTimeCalibrationEnable() { return m_accelRunTimeCalibrationEnable;}
+	const bool getGyroRunTimeCalibrationEnable()    { return m_gyroRunTimeCalibrationEnable;}
+    const bool getAccelRunTimeCalibrationEnable()   { return m_accelRunTimeCalibrationEnable;}
     const bool getCompassRunTimeCalibrationEnable() { return m_compassRunTimeCalibrationEnable;}
-    
+    const RTVector3& getCompassRunTimeMagCalMax()   { return m_runtimeMagCalMax; }
+    const RTVector3& getCompassRunTimeMagCalMin()   { return m_runtimeMagCalMin; }
+    void resetCompassRunTimeMaxMin();
 	
     //  getIMUData returns the standard outputs of the IMU and fusion filter
     const RTIMU_DATA& getIMUData() { return m_imuData; }
@@ -145,7 +147,6 @@ public:
     //  setGyroCalibrationMode() turns off use of cal data so that raw data can be accumulated
     //  to derive calibration data
     void setGyroCalibrationMode(bool enable) { m_gyroCalibrationMode = enable; }
-    
     
     //  setCalibrationData configures the cal data from settings and also enables use if valid
     void setCalibrationData();
@@ -230,13 +231,13 @@ protected:
 	
     RTVector3 m_compassAverage;                             // a running average to smooth the mag outputs
 
-	//RunningAverage m_compassAverageX(5);					// Average filter for Compass
-	//RunningAverage m_compassAverageY(5);					// Average filter for Compass
-	//RunningAverage m_compassAverageZ(5);					// Average filter for Compass
+	RunningAverage *m_compassAverageX;					// Average filter for Compass X
+	RunningAverage *m_compassAverageY;	     			// Average filter for Compass Y
+	RunningAverage *m_compassAverageZ;					// Average filter for Compass Z
 
     bool m_runtimeMagCalValid;                              // true if the runtime mag calibration has valid data
-    float m_runtimeMagCalMax[3];                            // runtime max mag values seen
-    float m_runtimeMagCalMin[3];                            // runtime min mag values seen
+    RTVector3 m_runtimeMagCalMax;
+    RTVector3 m_runtimeMagCalMin;
 
     static float m_axisRotation[RTIMU_AXIS_ROTATION_COUNT][9];    // array of rotation matrices
 

@@ -110,6 +110,9 @@ void setup()
   heul[1]=0;
   heul[0]=0;
   
+  myPort.write("v");
+  myPort.write("b");
+  
 }
 
 
