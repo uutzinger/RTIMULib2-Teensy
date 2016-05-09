@@ -57,10 +57,10 @@ RTIMUSettings::RTIMUSettings(const char *productType)
     }
     pinMode(SD_CHIP_SELECT, OUTPUT);
     if (!SD.begin(SD_CHIP_SELECT)) {
-        Serial.println("SD card not found - using EEPROM calibration settings");
+        // Serial.println("SD card not found - using EEPROM calibration settings");
         m_usingSD = false;
     } else {
-        Serial.println("Using SD card for settings");
+        // Serial.println("Using SD card for settings");
         m_usingSD = true;
     }
 
@@ -459,6 +459,7 @@ void RTIMUSettings::setDefaults()
     m_SPISpeed = 500000;
     m_fusionType = RTFUSION_TYPE_KALMANSTATE4;
     //m_fusionType = RTFUSION_TYPE_RTQF;
+    //m_fusionType = RTFUSION_TYPE_AHRS;
     m_fusionDebug = false;
     m_axisRotation = RTIMU_XNORTH_YEAST;
     m_pressureType = RTPRESSURE_TYPE_AUTODISCOVER;

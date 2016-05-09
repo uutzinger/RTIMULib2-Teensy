@@ -33,7 +33,8 @@ RTIMU_DATA imuData;                                   // IMU Data Structure
 
 //  DISPLAY_INTERVAL sets the rate at which results are transferred to host
 #define DISPLAY_INTERVAL      100                   // interval in microseconds between data updates over serial port: 100000=10Hz, Fusion update is 80Hz, lowpass is 40Hz
-#define CHECKINPUT_INTERVAL   50000                   // 35000 will result in 40ms update time
+#define CHECKINPUT_INTERVAL   50000                 // 35000 will result in 40ms update time
+#define LEDBLINK_INTERVAL     100000                // 100ms
 
 //  SERIAL_PORT_SPEED defines the speed to use for the debug serial port
 #define  SERIAL_PORT_SPEED  250000
@@ -43,6 +44,8 @@ unsigned long lastRate;
 unsigned long lastInAvail;
 unsigned long lastTimestamp;
 unsigned long motionstart;
+unsigned long lastblink;
+
 int dt;       // time in between samples
 int dtmotion; // time during which motion occured
 int sampleCount;
@@ -51,10 +54,16 @@ int sampleRate;
 // Controlling Reporting and Input Output
 bool REPORT=false;                                    // do we need to produce output data?
 bool STREAM=true;                                     // are we continously streaming output?
-bool INAVAIL=false;                                   // do we need to check for input ?
-bool VERBOSE=false;                                   // set HEX mode
-bool CUBE=false;                                      // set output format for 4183 Robot
-bool ACCELCALIBRATE = false;
+bool INAVAIL=false;                                   // is it time to check for user input ?
+bool VERBOSE=false;                                   // set HEX or text mode
+bool CUBE=false;                                      // set output format for 4183 Robot or CUBE display program
+bool ACCELCALIBRATE = false;                          // enable runtime accel calibration
+bool SERIAL_REPORTING = false; 						  // minimal output when boot
+bool COMPASS_ENABLE = false;   					      // boot conditions for compass
+bool GYRO_CALIBRATED = false;                         // keep track if gyro is calibrated when system is still
+bool ledStatus = false;                               // status of external LED indicator
+bool PRESSURE_ENABLE = false;                         // disable pressure detection
+bool HUMIDITY_ENABLE = false;                         // disable humidity detection
 
 int  inByte = 0;                                      // serial input buffer, one byte
 
@@ -117,10 +126,16 @@ RTVector3 tempVec;
 
 bool lastMotion=false, motionStarted=false, motionEnded=false;
 
+const int ledPin = 2; // Check on https://www.pjrc.com/teensy/pinout.html; pin should not interfere with I2C and SPI
+
 void setup()
 {
     int errcode;
   
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, LOW);
+    ledStatus = false;
+        
     Serial.begin(SERIAL_PORT_SPEED);
     while (!Serial) {
         ; // wait for serial port to connect. 
@@ -130,44 +145,49 @@ void setup()
     // change configurations here if you need to as there is no SD card and therefore no ini file.
     
     imu = RTIMU::createIMU(settings);                        // create the imu object
-    Serial.print("TeensyIMU starting using device "); Serial.println(imu->IMUName());
+    if (SERIAL_REPORTING) {Serial.print("TeensyIMU starting using device "); Serial.println(imu->IMUName());}
 
-    pressure = RTPressure::createPressure(settings);        // create the pressure sensor
-    if (pressure == 0) {
-        Serial.println("No pressure sensor has been configured."); 
-    } else {
-        Serial.println(", pressure sensor "); Serial.print(pressure->pressureName());
-        if ((errcode = pressure->pressureInit()) < 0) {
-            Serial.print("Failed to init pressure sensor: "); Serial.println(errcode);
-        }
-    }
+	if (PRESSURE_ENABLE == true) {
+		pressure = RTPressure::createPressure(settings);        // create the pressure sensor
+		if (pressure == 0) {
+			if (SERIAL_REPORTING) {Serial.println("No pressure sensor has been configured."); }
+		} else {
+			if (SERIAL_REPORTING) {Serial.println(", pressure sensor "); Serial.print(pressure->pressureName());}
+			if ((errcode = pressure->pressureInit()) < 0) {
+				if (SERIAL_REPORTING) {Serial.print("Failed to init pressure sensor: "); Serial.println(errcode);}
+			}
+		}
+	}
 
-    humidity = RTHumidity::createHumidity(settings);        // create the pressure sensor
-    if (humidity == 0) {
-        Serial.println("No humidity sensor has been configured."); 
-    } else {
-      Serial.println(", humidity sensor "); Serial.println(humidity->humidityName());
-      if ((errcode = humidity->humidityInit()) < 0) {
-          Serial.print("Failed to init humidity sensor: "); Serial.println(errcode);
-      }
-    }
+    if (HUMIDITY_ENABLE == true) {
+		humidity = RTHumidity::createHumidity(settings);        // create the pressure sensor
+		if (humidity == 0) {
+			if (SERIAL_REPORTING) { Serial.println("No humidity sensor has been configured."); }
+		} else {
+		  if (SERIAL_REPORTING) { Serial.println(", humidity sensor "); Serial.println(humidity->humidityName()); }
+		  if ((errcode = humidity->humidityInit()) < 0) {
+			  if (SERIAL_REPORTING) { Serial.print("Failed to init humidity sensor: "); Serial.println(errcode);} 
+		  }
+		}
+	}
 
-    if ((errcode = imu->IMUInit()) < 0) { Serial.print("Failed to init IMU: "); Serial.println(errcode); }
-
+    if ((errcode = imu->IMUInit()) < 0) { 
+       if (SERIAL_REPORTING) { Serial.print("Failed to init IMU: "); }
+	   if (SERIAL_REPORTING) { Serial.println(errcode); } 
+	   }
     if (imu->getCompassCalibrationValid())
-        Serial.println("Using compass calibration");
+        if (SERIAL_REPORTING) {Serial.println("Using compass calibration");}
     else
-        Serial.println("No valid compass calibration data");
+        if (SERIAL_REPORTING) {Serial.println("No valid compass calibration data");}
 
     if (imu->getAccelCalibrationValid())
-        Serial.println("Using accel calibration");
+        if (SERIAL_REPORTING) { Serial.println("Using accel calibration"); }
     else
-        Serial.println("No valid accel calibration data");
-
+        if (SERIAL_REPORTING) { Serial.println("No valid accel calibration data"); }
     if (imu->getGyroCalibrationValid())
-        Serial.println("Using gyro calibration");
+        if (SERIAL_REPORTING) { Serial.println("Using gyro calibration"); }
     else
-        Serial.println("No valid gyro calibration data");
+        if (SERIAL_REPORTING) { Serial.println("No valid gyro calibration data");
 
     ////////////////////////////////////////////////////////////////////////////////////////
     //// set up any fusion parameters here
@@ -175,7 +195,7 @@ void setup()
     imu->setSlerpPower(slerpPower);
     imu->setGyroEnable(true);
     imu->setAccelEnable(true);
-    imu->setCompassEnable(true);
+    imu->setCompassEnable(COMPASS_ENABLE);
     settings->setDeclination(9.97f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
     
     //--Fusion
@@ -223,7 +243,12 @@ void setup()
     comp = comp / 50.0f; // compute average compass (devide by 50)
     magFieldNormScale=magFieldNorm/comp.length();
 
-    Serial.println("Send S to start streaming.");
+    if (SERIAL_REPORTING) { Serial.println("Send S to start streaming."); }
+
+    digitalWrite(ledPin, HIGH); // initialization completed
+    ledStatus = true;
+    lastblink = micros;
+
 }
   
 void loop()
@@ -375,6 +400,13 @@ void loop()
           INAVAIL = false;
         }
 
+		// Check if gyro bias has adated
+        if ((imuData.motion == false) && (imuData.gyro.length() <= 0.01)) {
+          GYRO_CALIBRATED = true;
+        } else {
+          GYRO_CALIBRATED = false;
+        }
+        
         ///////////////////////////////////////////////////////////////
         // Data Reporting
         ///////////////////////////////////////////////////////////////
@@ -473,10 +505,9 @@ void loop()
               BitBucketsUpdate();
             }  
           } // ASCII
-        } // report
+        } // report        
     } // imuread
-
-      
+     
     ///////////////////////////////////////////////////////////////
     // Input Commands
     ///////////////////////////////////////////////////////////////
@@ -570,6 +601,27 @@ void loop()
         }
       } // end if serial input available
     } // end INAVAIL
+
+    // Blink LED if gyro is calibrated
+    // But keep LED on if system is moving
+    if (GYRO_CALIBRATED == true) {
+      if ((currenTime - lastBlink) > LEDBLINK_INTERVAL) {
+        if (ledStatus == false) {
+          digitalWrite(ledPin, HIGH);
+          ledStatus = true;       
+        } else {
+          digitalWrite(ledPin, LOW);
+          ledStatus = false;
+        }
+        lastBlink = currentTime;
+      }
+    } else {
+      if (ledStatus == false) {  
+         digitalWrite(ledPin, HIGH);
+         ledStatus = true;
+      }  
+    } // GYRO blinking
+    
 } // end of main loop
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
