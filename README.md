@@ -2,7 +2,7 @@
 
 RTIMULib2-Teensy is the simplest way to connect a 9,10,11-dof IMU to a Teensy3.1 or 3.2 and obtain fully fused quaternion or Euler angle pose data. It will also read pressure sensors and humidity sensors. 
 
-This fork of the RTIMULib2-Teensy include drivers for underwater pressure sensor, humidity sensors, temperature calibration option, cross axis corrections for acceleration, option for runtime accelerometer calibration, storing more calibration data in the EEPROM, extended Arduino Sketch to verify calibration and visualize performance and Processing Sketch that visually displays the pose. Changes were made to the gyro bias calibration to better reject values.
+This fork of the RTIMULib2-Teensy includes drivers for underwater pressure sensor, humidity sensors, temperature calibration option, cross axis corrections for acceleration, option for runtime accelerometer calibration, storing more calibration data in the EEPROM, extended Arduino Sketch to verify calibration and visualize performance and Processing Sketch that visually displays the pose. Changes were made to the gyro bias calibration to better reject values.
 
 *** If the fusion algorithm uses magnetometer data, it is critical that it is calibrated. Noise in the pose computation is usually due to magnetometer. When running this software on a robot it is best to turn off the magnetometer input into the fusion algorithm before motors are energized. ***
 

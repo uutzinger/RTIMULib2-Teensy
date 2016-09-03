@@ -126,26 +126,25 @@ RTVector3 tempVec;
 
 bool lastMotion=false, motionStarted=false, motionEnded=false;
 
-
 void setup()
 {
-    int errcode;
+  int errcode;
   
-    pinMode(ledPin, OUTPUT);
-    digitalWrite(ledPin, LOW);
-    ledStatus = false;
+  pinMode(ledPin, OUTPUT);
+  digitalWrite(ledPin, LOW);
+  ledStatus = false;
         
-    Serial.begin(SERIAL_PORT_SPEED);
-    while (!Serial) {
-        ; // wait for serial port to connect. 
-    }
-    Wire.begin();
-    settings = new RTIMUSettings();
-    // change configurations here if you need to as there is no SD card and therefore no ini file.
-    settings->setDeclination(9.97f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
+  Serial.begin(SERIAL_PORT_SPEED);
+  while (!Serial) {
+      ; // wait for serial port to connect. 
+  }
+  Wire.begin();
+  settings = new RTIMUSettings();
+  // change configurations here if you need to as there is no SD card and therefore no ini file.
+  settings->setDeclination(9.97f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
     
-    imu = RTIMU::createIMU(settings);                        // create the imu object
-    if (SERIAL_REPORTING) {Serial.print("TeensyIMU starting using device "); Serial.println(imu->IMUName());}
+  imu = RTIMU::createIMU(settings);                        // create the imu object
+  if (SERIAL_REPORTING) {Serial.print("TeensyIMU starting using device "); Serial.println(imu->IMUName());}
 
 	if (PRESSURE_ENABLE == true) {
 		pressure = RTPressure::createPressure(settings);        // create the pressure sensor
@@ -159,7 +158,7 @@ void setup()
 		}
 	} // pressure
 
-    if (HUMIDITY_ENABLE == true) {
+  if (HUMIDITY_ENABLE == true) {
 		humidity = RTHumidity::createHumidity(settings);        // create the pressure sensor
 		if (humidity == 0) {
 			if (SERIAL_REPORTING) { Serial.println("No humidity sensor has been configured."); }
@@ -171,84 +170,85 @@ void setup()
 		}
 	} // humidity
 
-    if ((errcode = imu->IMUInit()) < 0) { 
+  if ((errcode = imu->IMUInit()) < 0) { 
        if (SERIAL_REPORTING) { Serial.print("Failed to init IMU: "); }
-	   if (SERIAL_REPORTING) { Serial.println(errcode); } 
-	   }
-    if (imu->getCompassCalibrationValid())
-        if (SERIAL_REPORTING) {Serial.println("Using compass calibration");}
-    else
-        if (SERIAL_REPORTING) {Serial.println("No valid compass calibration data");}
-
-    if (imu->getAccelCalibrationValid())
-        if (SERIAL_REPORTING) { Serial.println("Using accel calibration"); }
-    else
-        if (SERIAL_REPORTING) { Serial.println("No valid accel calibration data"); }
-    if (imu->getGyroCalibrationValid())
-        if (SERIAL_REPORTING) { Serial.println("Using gyro calibration"); }
-    else
-        if (SERIAL_REPORTING) { Serial.println("No valid gyro calibration data");
-
-    ////////////////////////////////////////////////////////////////////////////////////////
-    //// set up any fusion parameters here
-    ////////////////////////////////////////////////////////////////////////////////////////
-    imu->setSlerpPower(slerpPower);
-    imu->setGyroEnable(true);
-    imu->setAccelEnable(true);
-    imu->setCompassEnable(COMPASS_ENABLE);
+	     if (SERIAL_REPORTING) { Serial.println(errcode); } 
+	}
+  if (imu->getCompassCalibrationValid()) {
+    if (SERIAL_REPORTING) {Serial.println("Using compass calibration");}
+  } else {
+    if (SERIAL_REPORTING) {Serial.println("No valid compass calibration data");}
+  }
+  if (imu->getAccelCalibrationValid()) {
+    if (SERIAL_REPORTING) { Serial.println("Using accel calibration"); }
+  } else {
+    if (SERIAL_REPORTING) { Serial.println("No valid accel calibration data"); }
+  }
+  if (imu->getGyroCalibrationValid()) {
+    if (SERIAL_REPORTING) { Serial.println("Using gyro calibration"); }
+  } else {
+    if (SERIAL_REPORTING) { Serial.println("No valid gyro calibration data"); }
+  }
+  ////////////////////////////////////////////////////////////////////////////////////////
+  //// set up any fusion parameters here
+  ////////////////////////////////////////////////////////////////////////////////////////
+  imu->setSlerpPower(slerpPower);
+  imu->setGyroEnable(true);
+  imu->setAccelEnable(true);
+  imu->setCompassEnable(COMPASS_ENABLE);
     
-    //--Fusion
-    bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
-    bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
-    bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
-    bitWrite(fusionStatus, STATE_FUSION_MOVING,        false );
+  //--Fusion
+  bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
+  bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
+  bitWrite(fusionStatus, STATE_FUSION_COMPASSENABLE, imu->getCompassEnable() );
+  bitWrite(fusionStatus, STATE_FUSION_MOVING,        false );
     
-    // House keeping & Initializing
-    lastDisplay = lastRate = lastTimestamp = lastInAvail = micros();
-    sampleCount = 0;
-    residuals.zero();
-    worldResiduals.zero();
-    worldResidualsPrevious.zero();
-    worldVelocity.zero();
-    worldVelocityPrevious.zero();
-    worldVelocityBias.zero();
-    compassHeading_avg.clear();
+  // House keeping & Initializing
+  lastDisplay = lastRate = lastTimestamp = lastInAvail = micros();
+  sampleCount = 0;
+  residuals.zero();
+  worldResiduals.zero();
+  worldResidualsPrevious.zero();
+  worldVelocity.zero();
+  worldVelocityPrevious.zero();
+  worldVelocityBias.zero();
+  compassHeading_avg.clear();
 
-    residualsBias.zero();                             // average acceleration when device is stationary
+  residualsBias.zero();                             // average acceleration when device is stationary
 
-    gravity.setScalar(0);
-    gravity.setX(0);
-    gravity.setY(0);
-    gravity.setZ(1);
+  gravity.setScalar(0);
+  gravity.setX(0);
+  gravity.setY(0);
+  gravity.setZ(1);
 
-    // dry run of the system
-    int i=0; // dry run
-    while (i < 80) {
-      if  (imu->IMURead()) {
-        i++;
-      }
+  // dry run of the system
+  int i=0; // dry run
+  while (i < 80) {
+    if  (imu->IMURead()) {
+      i++;
     }
+  }
 
-    // Compute normalization factor for earts magnetic field
-    comp.zero();
-    i=0;
-    while (i < 50) {
-      if  (imu->IMURead()) {                       // get the latest calibrated data 
-        imuData = imu->getIMUData();
-        comp = comp + imuData.compass;             // get compass
-        i++;
-      }
+  // Compute normalization factor for earts magnetic field
+  comp.zero();
+  i=0;
+  while (i < 50) {
+    if  (imu->IMURead()) {                       // get the latest calibrated data 
+      imuData = imu->getIMUData();
+      comp = comp + imuData.compass;             // get compass
+      i++;
     }
-    comp = comp / 50.0f; // compute average compass (devide by 50)
-    magFieldNormScale=magFieldNorm/comp.length();
+  }
+  comp = comp / 50.0f; // compute average compass (devide by 50)
+  magFieldNormScale=magFieldNorm/comp.length();
+  
+  if (SERIAL_REPORTING) { Serial.println("Send S to start streaming."); }
 
-    if (SERIAL_REPORTING) { Serial.println("Send S to start streaming."); }
+  digitalWrite(ledPin, HIGH); // initialization completed
+  ledStatus = true;
+  lastBlink = micros();
 
-    digitalWrite(ledPin, HIGH); // initialization completed
-    ledStatus = true;
-    lastblink = micros;
-
-}
+} // setup
   
 void loop()
 {  
@@ -399,7 +399,8 @@ void loop()
           INAVAIL = false;
         }
 
-		// Check if gyro bias has adated
+	      // Check if gyro bias has adated
+        // The noise on the 9150 gyroscope is about 0.002
         if ((imuData.motion == false) && (imuData.gyro.length() <= 0.01)) {
           GYRO_CALIBRATED = true;
         } else {
@@ -601,10 +602,11 @@ void loop()
       } // end if serial input available
     } // end INAVAIL
 
-    // Blink LED if gyro is calibrated
+    // Blink LED if gyro is calibrated otherwise keep it on
+    ///////////////////////////////////////////////////////////////
     // But keep LED on if system is moving
     if (GYRO_CALIBRATED == true) {
-      if ((currenTime - lastBlink) > LEDBLINK_INTERVAL) {
+      if ((currentTime - lastBlink) > LEDBLINK_INTERVAL) {
         if (ledStatus == false) {
           digitalWrite(ledPin, HIGH);
           ledStatus = true;       

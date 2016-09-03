@@ -21,56 +21,52 @@
 //  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+#ifndef _RTPRESSUREMS5837_H_
+#define _RTPRESSUREMS5837_H_
 
 #include "RTPressure.h"
 
-#include "RTPressureBMP180.h"
-#include "RTPressureLPS25H.h"
-#include "RTPressureMS5611.h"
-#include "RTPressureMS5637.h"
-#include "RTPressureMS5803.h"
-#include "RTPressureMS5837.h"
-RTPressure *RTPressure::createPressure(RTIMUSettings *settings)
+//  State definitions
+
+#define MS5837_STATE_IDLE               0
+#define MS5837_STATE_TEMPERATURE        1
+#define MS5837_STATE_PRESSURE           2
+#define MS5837_STATE_RESET              3
+
+class RTIMUSettings;
+
+class RTPressureMS5837 : public RTPressure
 {
-    switch (settings->m_pressureType) {
-    case RTPRESSURE_TYPE_BMP180:
-        return new RTPressureBMP180(settings);
+public:
+    RTPressureMS5837(RTIMUSettings *settings);
+    ~RTPressureMS5837();
 
-    case RTPRESSURE_TYPE_LPS25H:
-        return new RTPressureLPS25H(settings);
+    virtual const char *pressureName() { return "MS5837"; }
+    virtual int pressureType() { return RTPRESSURE_TYPE_MS5837; } 
+    virtual bool pressureInit();
+    virtual bool pressureReset();
+    virtual bool pressureRead(RTIMU_DATA& data);
 
-    case RTPRESSURE_TYPE_MS5611:
-        return new RTPressureMS5611(settings);
+private:
+    void pressureBackground();
+    void setTestData();
+	uint8_t crc4(uint16_t n_prom[]);
 
-    case RTPRESSURE_TYPE_MS5637:
-        return new RTPressureMS5637(settings);
+    unsigned char m_pressureAddr;                           // I2C address
+    RTFLOAT m_pressure;                                     // the current pressure
+    RTFLOAT m_temperature;                                  // the current temperature
 
-    case RTPRESSURE_TYPE_MS5803:
-        return new RTPressureMS5803(settings);
+    int m_state;
 
-    case RTPRESSURE_TYPE_MS5837:
-        return new RTPressureMS5837(settings);
-    case RTPRESSURE_TYPE_AUTODISCOVER:
-        if (settings->discoverPressure(settings->m_pressureType, settings->m_I2CPressureAddress)) {
-            settings->saveSettings();
-            return RTPressure::createPressure(settings);
-        }
-        return NULL;
+    uint16_t m_calData[8];                                  // calibration data
 
-    case RTPRESSURE_TYPE_NULL:
-        return NULL;
+    uint32_t m_D1;
+    uint32_t m_D2;
 
-    default:
-        return NULL;
-    }
-}
+    uint64_t m_timer;                                       // used to time coversions
 
+    bool m_validReadings;
+};
 
-RTPressure::RTPressure(RTIMUSettings *settings)
-{
-    m_settings = settings;
-}
+#endif // _RTPRESSUREMS5837_H_
 
-RTPressure::~RTPressure()
-{
-}

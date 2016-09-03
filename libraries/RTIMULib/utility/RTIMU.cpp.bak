@@ -25,13 +25,6 @@
 // provide temperature compensation to IMU sensor data
 // update: recomputes to temperature offsets
 // handle: applies to offsets to raw data
-// 
-// There is also attempt to better handle gyrio bias updates.
-// When no motion is detected the gyro is updated. A low pass filter for
-// initial bias estimate passes higher frequencies but after some learning
-// it switches to a slower process so that the bias changes at slower pace.
-// The gyro readings from the sensor are only used for updates 100ms after motion
-// stopped and 100ms before it started again.
 
 #include "RTIMU.h"
 #include "RTFusionKalman4.h"
@@ -40,7 +33,6 @@
 #include "RTIMUNull.h"
 #include "RTIMUMPU9150.h"
 #include "RTIMUMPU9250.h"
-#include "RTIMUMPU9255.h"
 #include "RTIMUGD20HM303D.h"
 #include "RTIMUGD20M303DLHC.h"
 #include "RTIMUGD20HM303DLHC.h"
@@ -48,7 +40,6 @@
 #include "RTIMULSM9DS1.h"
 #include "RTIMUBMX055.h"
 #include "RTIMUBNO055.h"
-#include "RTMotion.h"
 #include "RunningAverage.h"
 
 //  this sets the learning rate for compass and accelerometer running average calculation
@@ -124,9 +115,6 @@ RTIMU *RTIMU::createIMU(RTIMUSettings *settings)
     case RTIMU_TYPE_MPU9250:
         return new RTIMUMPU9250(settings);
 
-    case RTIMU_TYPE_MPU9255:
-        return new RTIMUMPU9255(settings);
-		
     case RTIMU_TYPE_GD20HM303DLHC:
         return new RTIMUGD20HM303DLHC(settings);
 
@@ -314,7 +302,7 @@ bool RTIMU::setGyroContinuousLearningAlpha(RTFLOAT alpha)
 void RTIMU::gyroBiasInit()
 {
     m_gyroLearningAlpha = 2.0f / m_sampleRate;
-    m_gyroContinuousAlpha = 0.02f / m_sampleRate;
+    m_gyroContinuousAlpha = 0.01f / m_sampleRate;
 	m_imuData.motion = true; // ensure that when system starts without motion the gyro bias learning is triggerd also
 	m_EEPROMCount = 0;
 	m_intervalCount = 0;
@@ -404,21 +392,22 @@ void RTIMU::handleGyroBias()
 	    // Serial.println("IMU transitioned from motion to still");
 		m_noMotionStarted = true;
 	}
+	
+    //
 	// GyroBias
 	// The goal is to discard the first 0.1 sec of no motion and the last 0.1 sec of no motion
 	// from bias updates
-
 	// bias update is passed through low pass filter
 	//
     if ( m_gyroRunTimeCalibrationEnable ) {
 		if (!m_imuData.motion) { // Update Gyro Bias if there is no motion
 			m_intervalCount++; 
-			// if device was still for 0.1 seconds 
+			// if device was still for 0.5 seconds 
 			//    update current bias with candidate
 			//    update candidate bias with temporary bias
 			//    when noMotionStarted do not update bias for first interval
 			//    when IMU moves again, the candidate will not be applied, discarding the last interval
-			if (m_intervalCount >= 0.1 * m_sampleRate) {
+			if (m_intervalCount >= 0.5 * m_sampleRate) {
 				m_intervalCount = 0;
 				m_settings->m_gyroBias = m_gyroBiasCandidate; 	// activate candidate bias
 				m_gyroBiasCandidate = m_gyroBiasTemp; 			// update candidate

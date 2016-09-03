@@ -472,13 +472,6 @@ RTQuaternion& RTQuaternion::operator =(const RTQuaternion& quat)
     return *this;
 }
 
-RTQuaternion& RTQuaternion::operator =(const RTFLOAT val)
-{
-    for (int i = 0; i < 4; i++)
-        m_data[i] = val;
-    return *this;
-}
-
 RTQuaternion& RTQuaternion::operator +=(const RTFLOAT val)
 {
     for (int i = 0; i < 4; i++)

@@ -66,7 +66,6 @@ RTHumidity::~RTHumidity()
 
 RTFLOAT RTHumidity::updateAverageHumidity(RTFLOAT& humidity) 
 {
-    // this needs two component because of 0 - 360 jump at North 
     m_humidity_avg->addValue(humidity);
     return m_humidity_avg->getAverage();
 }

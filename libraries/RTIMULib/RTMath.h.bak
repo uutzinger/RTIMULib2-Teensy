@@ -89,16 +89,16 @@ public:
     RTVector3& operator +=(const RTVector3& vec);
     RTVector3& operator -=(const RTVector3& vec);
     RTVector3& operator *=(const RTVector3& vec);
-    RTVector3& operator  =(const RTVector3& vec);
     RTVector3& operator *=(const RTFLOAT val);
     RTVector3& operator -=(const RTFLOAT val);
     RTVector3& operator +=(const RTFLOAT val);
     RTVector3& operator /=(const RTFLOAT val);
-	RTVector3& operator  =(const RTFLOAT val);
-    
+
+    RTVector3& operator =(const RTVector3& vec);
+    RTVector3& operator =(const RTFLOAT val);
     const RTVector3 operator *(const RTVector3& qb) const;
     const RTVector3 operator *(const RTFLOAT val) const;
-    const RTVector3 operator /(const RTVector3& qb) const;
+//    const RTVector3 operator /(const RTVector3& qb) const;
     const RTVector3 operator /(const RTFLOAT val) const;
     const RTVector3 operator -(const RTVector3& qb) const;
     const RTVector3 operator -(const RTFLOAT val) const;
@@ -147,13 +147,12 @@ public:
     RTQuaternion& operator -=(const RTQuaternion& quat);
     RTQuaternion& operator *=(const RTQuaternion& qb);
     RTQuaternion& operator /=(const RTQuaternion& qb);
-    RTQuaternion& operator  =(const RTQuaternion& quat);
     RTQuaternion& operator +=(const RTFLOAT val);
     RTQuaternion& operator -=(const RTFLOAT val);
     RTQuaternion& operator *=(const RTFLOAT val);
     RTQuaternion& operator /=(const RTFLOAT val);
-    RTQuaternion& operator  =(const RTFLOAT val);
 
+    RTQuaternion& operator =(const RTQuaternion& quat);
     const RTQuaternion operator *(const RTQuaternion& qb) const;
     const RTQuaternion operator *(const RTFLOAT val) const;
     const RTQuaternion operator /(const RTQuaternion& qb) const;
