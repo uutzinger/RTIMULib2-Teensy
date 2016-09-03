@@ -79,7 +79,7 @@ where "..." represents the path to the RTIMULib2-Teensy directory. The directory
 ### Cube_Display
 This processing sketch displays the IMU as a box and shows numerical values in a window.
 It responds to some user key strokes and for example turns compass on/off with M/m.
-This visualization is useful to study how fast the pose follows motion and how well the motion detection algorithm works as one can observe very small motion using this program. If compass is used for fusion, after rigorous motion, there usually is settling of the pose.
+This visualization is useful to study how fast the pose follows motion and how well the motion detection algorithm works as one can observe very small motion using this program. If compass is used for fusion, after rigorous motion, there usually is delayed settling of the pose.
 
 ### BitBucketsIMU
 This sketch implements IMU for FRC team 4183 to communicate with RoboRIO and transmit data over USB interface.
@@ -102,7 +102,7 @@ Enter 's' to save the data.
 Do not run autocalibration or update max/min data when you move the sensor!
 
 ### TeensyGyroCal
-This will run the sensor for a while and then save the gyro bias values in the EEPROM. Bias values are update during runtime when the sensor is not moving.
+This will run the sensor for a while and then save the gyro bias values in the EEPROM. Bias values are also updated during runtime when the sensor is not moving.
 
 ### TeensyIMU
 TeensyIMU is the main demo sketch. It configures the IMU based on settings in RTIMUSettings.cpp. Change these to alter any of the parameters or edit the RTIMULib.ini file after auto-detection.

@@ -44,7 +44,7 @@ unsigned long lastRate;
 unsigned long lastInAvail;
 unsigned long lastTimestamp;
 unsigned long motionstart;
-unsigned long lastBlink;
+unsigned long lastblink;
 
 int dt;       // time in between samples
 int dtmotion; // time during which motion occured
@@ -61,22 +61,22 @@ bool ACCELCALIBRATE = false;                          // enable runtime accel ca
 bool SERIAL_REPORTING = false; 						  // minimal output when boot
 bool COMPASS_ENABLE = false;   					      // boot conditions for compass
 bool GYRO_CALIBRATED = false;                         // keep track if gyro is calibrated when system is still
+bool ledStatus = false;                               // status of external LED indicator
 bool PRESSURE_ENABLE = false;                         // disable pressure detection
 bool HUMIDITY_ENABLE = false;                         // disable humidity detection
-float slerpPower = 0.02;                             // Fusion convergence
-const int ledPin = 2; // Check on https://www.pjrc.com/teensy/pinout.html; pin should not interfere with I2C and SPI
-bool ledStatus = false;                               // status of external LED indicator
+
 int  inByte = 0;                                      // serial input buffer, one byte
 
-// Fusion Status bits
+// Fusion Status
 byte fusionStatus = B00000000;                       // Represents the enabled components of the fusion algorithm
+float slerpPower = 0.02;                             // Fusion convergence
 // devices used for fusion 
 #define STATE_FUSION_GYROENABLE    0                  // Use Gyroscope for Fusion
 #define STATE_FUSION_COMPASSENABLE 1                  // Use Compass for Fusion
 #define STATE_FUSION_ACCELENABLE   2                  // Use Accelerator for Fusion
 #define STATE_FUSION_MOVING        7                  // System is moving
 
-// IMU Status bits
+// IMU Status
 byte systemStatusIMU = B00000000;
 #define STATE_FUSIONPOSEVALID       0
 #define STATE_FUSIONQPOSEVALID      1
@@ -87,7 +87,7 @@ byte systemStatusIMU = B00000000;
 #define STATE_GYRORUNTIMEUPDATE     6
 #define STATE_COMPASSRUNTIMEUPDATE  7
 
-// AUX Status bits
+// AUX Status
 byte systemStatusAUX = B00000000;
 #define STATE_PRESSUREVALID      0
 #define STATE_PRESSURETEMPVALID  1
@@ -126,6 +126,7 @@ RTVector3 tempVec;
 
 bool lastMotion=false, motionStarted=false, motionEnded=false;
 
+const int ledPin = 2; // Check on https://www.pjrc.com/teensy/pinout.html; pin should not interfere with I2C and SPI
 
 void setup()
 {
@@ -142,7 +143,6 @@ void setup()
     Wire.begin();
     settings = new RTIMUSettings();
     // change configurations here if you need to as there is no SD card and therefore no ini file.
-    settings->setDeclination(9.97f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
     
     imu = RTIMU::createIMU(settings);                        // create the imu object
     if (SERIAL_REPORTING) {Serial.print("TeensyIMU starting using device "); Serial.println(imu->IMUName());}
@@ -157,7 +157,7 @@ void setup()
 				if (SERIAL_REPORTING) {Serial.print("Failed to init pressure sensor: "); Serial.println(errcode);}
 			}
 		}
-	} // pressure
+	}
 
     if (HUMIDITY_ENABLE == true) {
 		humidity = RTHumidity::createHumidity(settings);        // create the pressure sensor
@@ -169,7 +169,7 @@ void setup()
 			  if (SERIAL_REPORTING) { Serial.print("Failed to init humidity sensor: "); Serial.println(errcode);} 
 		  }
 		}
-	} // humidity
+	}
 
     if ((errcode = imu->IMUInit()) < 0) { 
        if (SERIAL_REPORTING) { Serial.print("Failed to init IMU: "); }
@@ -196,6 +196,7 @@ void setup()
     imu->setGyroEnable(true);
     imu->setAccelEnable(true);
     imu->setCompassEnable(COMPASS_ENABLE);
+    settings->setDeclination(9.97f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
     
     //--Fusion
     bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
