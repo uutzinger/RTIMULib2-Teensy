@@ -14,10 +14,11 @@ This fork of the RTIMULib2-Teensy includes drivers for underwater pressure senso
 
 RTIMULib2-Teensy currently supports the following IMUs:
 
-* InvenSense MPU-9150 single chip IMU.
 * InvenSense MPU-6050 plus HMC5883 magnetometer on MPU-6050's aux bus (handled by the MPU-9150 driver).
 * InvenSense MPU-6050 gyros + acclerometers. Treated as MPU-9150 without magnetometers.
+* InvenSense MPU-9150 single chip IMU.
 * InvenSense MPU-9250 single chip IMU (I2C and SPI)
+* InvenSense MPU-9255 single chip IMU (I2C and SPI)
 * STM LSM9DS0 single chip IMU
 * L3GD20H + LSM303D (optionally with the LPS25H) as used on the Pololu AltIMU-10 v4.
 * L3GD20 + LSM303DLHC as used on the Adafruit 9-dof (older version with GD20 gyro) IMU. 
@@ -33,6 +34,7 @@ Pressure/temperature sensing is supported for the following pressure sensors:
 * MS5611
 * MS5637
 * MS5803 (10atm underwater)
+* MS5837 (30atm underwater)
 
 Humidity/temperature sensing is supported for the following humidity sensors:
 
