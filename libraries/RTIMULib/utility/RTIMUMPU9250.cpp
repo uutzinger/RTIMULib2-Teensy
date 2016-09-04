@@ -83,7 +83,6 @@
  - Read USER_CTRL 
  - Set USER_CTRL I2C Master Control OFF
  - Set register so that user can access auxiliary I2C bus
-
  *  Reset FIFO
  * -----------
  - Modify MPU9250_INT_ENABLE to disable FIFO interrupt
@@ -172,7 +171,6 @@ bool RTIMUMPU9250::setAccelLpf(unsigned char lpf)
         return false;
     }
 }
-
 bool RTIMUMPU9250::setCompassRate(int rate)
 {
     if ((rate < MPU9250_COMPASSRATE_MIN) || (rate > MPU9250_COMPASSRATE_MAX)) {
@@ -270,8 +268,7 @@ bool RTIMUMPU9250::IMUInit()
     m_imuData.pressure = 0.0;
     m_imuData.pressureTemperatureValid = false;
     m_imuData.pressureTemperature = 0.0;
-
-
+	
     //  configure IMU
 
     m_slaveAddr = m_settings->m_I2CSlaveAddress;
@@ -284,7 +281,6 @@ bool RTIMUMPU9250::IMUInit()
     setAccelFsr(m_settings->m_MPU9250AccelFsr);
 
     setCalibrationData();
-
 
     //  enable the bus
 
@@ -363,7 +359,6 @@ bool RTIMUMPU9250::resetFifo()
 														   // 0x40 FIFO EN 
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_USER_CTRL, 0x60, "Enabling the fifo"))
         return false; // set bit 5 (sets I2C to master mode) bit 6 (sets FIFO ENABLE)
-
     // m_settings->delayMs(50);
 
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_INT_ENABLE, 1, "Writing int enable"))
@@ -393,7 +388,6 @@ bool RTIMUMPU9250::resetFifo()
 	#endif
 
 	return true;
-
 }
 
 bool RTIMUMPU9250::setGyroConfig()
@@ -404,14 +398,10 @@ bool RTIMUMPU9250::setGyroConfig()
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_GYRO_CONFIG, gyroConfig, "Failed to write gyro config"))
          return false;
 
-
-
-
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_GYRO_LPF, gyroLpf, "Failed to write gyro lpf"))
          return false;
     return true;
 }
-
 
 
 bool RTIMUMPU9250::setAccelConfig()
@@ -424,7 +414,6 @@ bool RTIMUMPU9250::setAccelConfig()
     return true;
 }
 
-
 bool RTIMUMPU9250::setSampleRate()
 {
     if (m_sampleRate > 1000)
@@ -436,7 +425,6 @@ bool RTIMUMPU9250::setSampleRate()
 
     return true;
 }
-
 
 bool RTIMUMPU9250::compassSetup() {
     unsigned char asa[3];
@@ -480,9 +468,6 @@ bool RTIMUMPU9250::compassSetup() {
 
         if (!m_settings->HALWrite(m_slaveAddr, MPU9250_I2C_SLV0_ADDR, 0x80 | AK8963_ADDRESS, "Failed to set slave 0 address"))
             return false;
-
-
-
 
         if (!m_settings->HALWrite(m_slaveAddr, MPU9250_I2C_SLV0_REG, AK8963_ASAX, "Failed to set slave 0 reg"))
             return false;
@@ -538,7 +523,6 @@ bool RTIMUMPU9250::compassSetup() {
 
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_I2C_SLV1_REG, AK8963_CNTL, "Failed to set slave 1 reg"))
         return false;
-
 
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_I2C_SLV1_CTRL, 0x81, "Failed to set slave 1 ctrl"))
         return false;
@@ -609,8 +593,6 @@ bool RTIMUMPU9250::bypassOff()
     return true;
 }
 
-
-
 int RTIMUMPU9250::IMUGetPollInterval()
 {
     if (m_sampleRate > 400)
@@ -640,7 +622,7 @@ bool RTIMUMPU9250::IMURead()
     // printf("FIFO Count: %d, Cache Count: %d, FIFO Chunk Length: %d, Max Cache Size: %d\n",count, m_cacheCount, MPU9250_FIFO_CHUNK_SIZE, MPU9250_CACHE_SIZE);
 	
     if (count == 512) {
-        HAL_INFO("MPU-9250 fifo has overflowed");
+        HAL_INFO("MPU9250 fifo has overflowed");
         resetFifo();
         m_imuData.timestamp += m_sampleInterval * (512 / MPU9250_FIFO_CHUNK_SIZE + 1); // try to fix timestamp
         return false;
@@ -650,7 +632,7 @@ bool RTIMUMPU9250::IMURead()
     if ( (m_cacheCount == 0) && (count  < MPU9250_FIFO_CHUNK_SIZE) ) 
         return false; // no new set of data available
 		
-    if ((m_cacheCount == 0) && (count  >= MPU9250_FIFO_CHUNK_SIZE) && (count < (MPU9250_CACHE_SIZE * MPU9250_FIFO_CHUNK_SIZE))) {
+    if ((m_cacheCount == 0) && (count  >= MPU9250_FIFO_CHUNK_SIZE) && (count < (MPU9250_CACHE_SIZE * MPU9250_FIFO_CHUNK_SIZE)) )  {
         // special case of a small fifo and nothing cached - just handle as simple read
 
         if (!m_settings->HALRead(m_slaveAddr, MPU9250_FIFO_R_W, MPU9250_FIFO_CHUNK_SIZE, fifoData, "Failed to read fifo data"))
@@ -747,7 +729,6 @@ bool RTIMUMPU9250::IMURead()
 
     if (!m_settings->HALRead(m_slaveAddr, MPU9250_FIFO_R_W, MPU9250_FIFO_CHUNK_SIZE, fifoData, "Failed to read fifo data"))
         return false;
-
     #if MPU9250_FIFO_WITH_TEMP == 0
     if (!m_settings->HALRead(m_slaveAddr, MPU9250_TEMP_OUT_H, 2, temperatureData, "Failed to read temperature data"))
         return false;
@@ -757,14 +738,10 @@ bool RTIMUMPU9250::IMURead()
     if (!m_settings->HALRead(m_slaveAddr, MPU9250_EXT_SENS_DATA_00, 8, compassData, "Failed to read compass data"))
         return false;
     #endif
-	
 #endif
 
-
-   
    // Accelerometer
     RTMath::convertToVector(fifoData, m_imuData.accel, m_accelScale, true);
-
     #if MPU9250_FIFO_WITH_TEMP == 1
         // Temperature
        
@@ -772,7 +749,6 @@ bool RTIMUMPU9250::IMURead()
         m_imuData.IMUtemperatureValid = true;
         // Gyroscope
         RTMath::convertToVector(fifoData + 8, m_imuData.gyro, m_gyroScale, true);
-		// RTMath::convertToVector(fifoData + 6, m_imuData.gyro, m_gyroScale, true);
          // Compass
         #if MPU9250_FIFO_WITH_COMPASS == 1
 			RTMath::convertToVector(fifoData + 14 + 1, m_imuData.compass, 0.6f, false);
@@ -808,7 +784,7 @@ bool RTIMUMPU9250::IMURead()
         Serial.printf("%x, ", fifoData[i] ); }
     #if MPU9250_FIFO_WITH_COMPASS == 0
     Serial.print("Compass: ");
-    for (unsigned int i=0; i < m_compassDataLength; i++) {
+    for (unsigned int i=0; i < 8; i++) {
         Serial.printf("%x, ", compassData[i] ); }
     #endif
     #if MPU9250_FIFO_WITH_TEMP == 0
@@ -845,7 +821,6 @@ bool RTIMUMPU9250::IMURead()
     temp = m_imuData.compass.x();
     m_imuData.compass.setX(m_imuData.compass.y());
     m_imuData.compass.setY(-temp);
-
     if (m_firstTime)
         m_imuData.timestamp = RTMath::currentUSecsSinceEpoch();
     else
@@ -863,8 +838,7 @@ bool RTIMUMPU9250::IMURead()
         }
         // Then do
         handleTempBias(); 	// temperature Correction
-    }	
-
+    }
     handleGyroBias();
     calibrateAverageCompass();
     calibrateAccel();
@@ -874,5 +848,3 @@ bool RTIMUMPU9250::IMURead()
 
     return true;
 }
-
-

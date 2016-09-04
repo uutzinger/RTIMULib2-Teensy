@@ -53,14 +53,9 @@
 #endif
 
 #ifdef MPU9250_CACHE_MODE
-
 //  Cache mode defines
-
 #define MPU9250_CACHE_SIZE          16                      // number of chunks in a block
 #define MPU9250_CACHE_BLOCK_COUNT   16                      // number of cache blocks
-
-#define TEMPERATURE_DELTA 0.05f                             // change in temperature necessary to recompute the biases
-
 typedef struct
 {
     unsigned char data[MPU9250_FIFO_CHUNK_SIZE * MPU9250_CACHE_SIZE];
@@ -74,8 +69,9 @@ typedef struct
     unsigned char temperature[2];                           // the raw temperature reading
     #endif
 } MPU9250_CACHE_BLOCK;
-
 #endif
+
+#define TEMPERATURE_DELTA 0.05f                             // change in temperature necessary to recompute the biases
 
 
 class RTIMUMPU9250 : public RTIMU

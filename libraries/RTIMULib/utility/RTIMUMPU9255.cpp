@@ -21,6 +21,19 @@
 //  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+// UU: This code was modified to: 
+// read IMU temperature
+// read temperature and compass from FIFO
+// attempted to repair error in cache mode
+// changed FIFO reset to also reset signal path and DMP
+// moved "wait 50ms" to location after reset
+// added humidity, humidity sensor temperature, pressure, pressure sensor temperature
+//  to imuData structure. This was added to imuData structure instead of 
+//  separate structure because other sensor data had already been added there
+
+
+
+
 //  The MPU-9255 and SPI driver code is based on code generously supplied by
 //  staslock@gmail.com (www.clickdrive.io)
 
@@ -30,9 +43,7 @@
 
 RTIMUMPU9255::RTIMUMPU9255(RTIMUSettings *settings) : RTIMU(settings)
 {
-
 }
-
 RTIMUMPU9255::~RTIMUMPU9255()
 {
 }
@@ -202,7 +213,6 @@ bool RTIMUMPU9255::IMUInit()
     m_imuData.pressureTemperatureValid = false;
     m_imuData.pressureTemperature = 0.0;
 	
-	
     //  configure IMU
 
     m_slaveAddr = m_settings->m_I2CSlaveAddress;
@@ -215,7 +225,6 @@ bool RTIMUMPU9255::IMUInit()
     setAccelFsr(m_settings->m_MPU9255AccelFsr);
 
     setCalibrationData();
-
 
     //  enable the bus
 
@@ -282,29 +291,44 @@ bool RTIMUMPU9255::resetFifo()
 {
     if (!m_settings->HALWrite(m_slaveAddr, MPU9255_INT_ENABLE, 0, "Writing int enable"))
         return false;
+
     if (!m_settings->HALWrite(m_slaveAddr, MPU9255_FIFO_EN, 0, "Writing fifo enable"))
         return false;
+
     if (!m_settings->HALWrite(m_slaveAddr, MPU9255_USER_CTRL, 0, "Writing user control"))
         return false;
+	
+    if (!m_settings->HALWrite(m_slaveAddr, MPU9255_USER_CTRL, 0x0d, "Resetting fifo"))
+        return false; // reset FIFO while FIFO disabled
+		
+	m_settings->delayMs(50);
 
-    if (!m_settings->HALWrite(m_slaveAddr, MPU9255_USER_CTRL, 0x04, "Resetting fifo"))
+    if (!m_settings->HALWrite(m_slaveAddr, MPU9255_USER_CTRL, 0x60, "Resetting fifo"))
         return false;
-
     if (!m_settings->HALWrite(m_slaveAddr, MPU9255_USER_CTRL, 0x60, "Enabling the fifo"))
         return false;
-
-    m_settings->delayMs(50);
-
     if (!m_settings->HALWrite(m_slaveAddr, MPU9255_INT_ENABLE, 1, "Writing int enable"))
         return false;
 
-    if (MPU9255_FIFO_CHUNK_SIZE > 12) {
-        if (!m_settings->HALWrite(m_slaveAddr, MPU9255_FIFO_EN, 0xf8, "Failed to set FIFO enables"))
+
+    #if MPU9255_FIFO_WITH_TEMP == 1
+        #if MPU9255_FIFO_WITH_COMPASS == 1 // compass and temp in fifo
+			if (!m_settings->HALWrite(m_slaveAddr, MPU9255_FIFO_EN, 0xf9, "Failed to set FIFO enables"))
             return false;
-    } else {
-    if (!m_settings->HALWrite(m_slaveAddr, MPU9255_FIFO_EN, 0x78, "Failed to set FIFO enables"))
-        return false;
-	}
+		#else // with temp in fifo
+			if (!m_settings->HALWrite(m_slaveAddr, MPU9255_FIFO_EN, 0xf8, "Failed to set FIFO enables"))
+            return false;
+		#endif
+	#else
+        #if MPU9255_FIFO_WITH_COMPASS == 1 // compass in fifo
+			if (!m_settings->HALWrite(m_slaveAddr, MPU9255_FIFO_EN, 0x79, "Failed to set FIFO enables"))
+            return false;
+		#else // no compass and no temp in fifo
+		    if (!m_settings->HALWrite(m_slaveAddr, MPU9255_FIFO_EN, 0x78, "Failed to set FIFO enables"))  
+			return true;
+		#endif
+	#endif
+
     return true;
 }
 
@@ -466,7 +490,6 @@ bool RTIMUMPU9255::setCompassRate()
     return true;
 }
 
-
 bool RTIMUMPU9255::bypassOn()
 {
     unsigned char userControl;
@@ -487,7 +510,6 @@ bool RTIMUMPU9255::bypassOn()
     m_settings->delayMs(50);
     return true;
 }
-
 
 bool RTIMUMPU9255::bypassOff()
 {
@@ -510,7 +532,6 @@ bool RTIMUMPU9255::bypassOff()
     return true;
 }
 
-
 int RTIMUMPU9255::IMUGetPollInterval()
 {
     if (m_sampleRate > 400)
@@ -524,13 +545,16 @@ bool RTIMUMPU9255::IMURead()
     unsigned char fifoCount[2];
     unsigned int count;
     unsigned char fifoData[MPU9255_FIFO_CHUNK_SIZE];
-    unsigned char compassData[8];
-
+    #if MPU9255_FIFO_WITH_COMPASS == 0
+    unsigned char compassData[8]; // compass data goes here if it is not coming in through FIFO
+    #endif
+    #if MPU9255_FIFO_WITH_TEMP == 0
+    unsigned char temperatureData[2]; // if temperature data is not coming in through FIFO
+    #endif
     if (!m_settings->HALRead(m_slaveAddr, MPU9255_FIFO_COUNT_H, 2, fifoCount, "Failed to read fifo count"))
          return false;
 
     count = ((unsigned int)fifoCount[0] << 8) + fifoCount[1];
-
     if (count == 512) {
         HAL_INFO("MPU-9255 fifo has overflowed");
         resetFifo();
@@ -539,14 +563,24 @@ bool RTIMUMPU9255::IMURead()
     }
 
 #ifdef MPU9255_CACHE_MODE
+    if ( (m_cacheCount == 0) && (count  < MPU9255_FIFO_CHUNK_SIZE) ) 
+        return false; // no new set of data available
     if ((m_cacheCount == 0) && (count  >= MPU9255_FIFO_CHUNK_SIZE) && (count < (MPU9255_CACHE_SIZE * MPU9255_FIFO_CHUNK_SIZE))) {
         // special case of a small fifo and nothing cached - just handle as simple read
 
         if (!m_settings->HALRead(m_slaveAddr, MPU9255_FIFO_R_W, MPU9255_FIFO_CHUNK_SIZE, fifoData, "Failed to read fifo data"))
             return false;
 
+        #if MPU9255_FIFO_WITH_TEMP == 0 // read temp from registers
+        if (!m_settings->HALRead(m_slaveAddr, MPU9255_TEMP_OUT_H, 2,
+                            temperatureData, "Failed to read temperature data"))
+            return false; 
+        #endif
+
+        #if MPU9255_FIFO_WITH_COMPASS == 0 // read compass without fifo
         if (!m_settings->HALRead(m_slaveAddr, MPU9255_EXT_SENS_DATA_00, 8, compassData, "Failed to read compass data"))
             return false;
+		#endif
     } else {
         if (count >= (MPU9255_CACHE_SIZE * MPU9255_FIFO_CHUNK_SIZE)) {
             if (m_cacheCount == MPU9255_CACHE_BLOCK_COUNT) {
@@ -566,9 +600,15 @@ bool RTIMUMPU9255::IMURead()
                     m_cache[m_cacheIn].data, "Failed to read fifo data"))
                 return false;
 
+            #if MPU9255_FIFO_WITH_TEMP == 0 // read temp from registers
+            if (!m_settings->HALRead(m_slaveAddr, MPU9255_TEMP_OUT_H, 2,
+                                m_cache[m_cacheIn].temperature, "Failed to read temperature data"))
+                return false; 
+            #endif
+            #if MPU9255_FIFO_WITH_COMPASS == 0 // read compass from register
             if (!m_settings->HALRead(m_slaveAddr, MPU9255_EXT_SENS_DATA_00, 8, m_cache[m_cacheIn].compass, "Failed to read compass data"))
                 return false;
-
+			#endif
             m_cache[m_cacheIn].count = blockCount;
             m_cache[m_cacheIn].index = 0;
 
@@ -584,7 +624,12 @@ bool RTIMUMPU9255::IMURead()
             return false;
 
         memcpy(fifoData, m_cache[m_cacheOut].data + m_cache[m_cacheOut].index, MPU9255_FIFO_CHUNK_SIZE);
+        #if MPU9255_FIFO_WITH_COMPASS == 0
         memcpy(compassData, m_cache[m_cacheOut].compass, 8);
+        #endif
+        #if MPU9255_FIFO_WITH_TEMP == 0
+        memcpy(temperatureData, m_cache[m_cacheOut].temperature, 2);            
+        #endif
 
         m_cache[m_cacheOut].index += MPU9255_FIFO_CHUNK_SIZE;
 
@@ -614,26 +659,51 @@ bool RTIMUMPU9255::IMURead()
 
     if (!m_settings->HALRead(m_slaveAddr, MPU9255_FIFO_R_W, MPU9255_FIFO_CHUNK_SIZE, fifoData, "Failed to read fifo data"))
         return false;
+    #if MPU9255_FIFO_WITH_TEMP == 0
+    if (!m_settings->HALRead(m_slaveAddr, MPU9255_TEMP_OUT_H, 2, temperatureData, "Failed to read temperature data"))
+        return false;
+    #endif
 
+    #if MPU9255_FIFO_WITH_COMPASS == 0	
     if (!m_settings->HALRead(m_slaveAddr, MPU9255_EXT_SENS_DATA_00, 8, compassData, "Failed to read compass data"))
         return false;
-
+	#endif
 #endif
 
+   // Accelerometer
     RTMath::convertToVector(fifoData, m_imuData.accel, m_accelScale, true);
-    RTMath::convertToVector(fifoData + 6, m_imuData.gyro, m_gyroScale, true);
-    RTMath::convertToVector(compassData + 1, m_imuData.compass, 0.6f, false);
-    if (MPU9255_FIFO_CHUNK_SIZE > 12) {
-        m_imuData.IMUtemperature = ( (RTFLOAT)(((uint16_t)fifoData[12] << 8) | (uint16_t)fifoData[13]) - 521.0 ) / 340.0; // combined registers and convert to temperature
+    #if MPU9255_FIFO_WITH_TEMP == 1
+        // Temperature
+       
+        m_imuData.IMUtemperature =  ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f;  // combined registers and convert to temperature
         m_imuData.IMUtemperatureValid = true;
-    } else {
-        m_imuData.IMUtemperature = 0.0;
-        m_imuData.IMUtemperatureValid = false;
-    }
-	
-    if (m_imuData.IMUtemperatureValid == true) {
-            handleTempBias(); 	// temperature Correction
-    }
+        // Gyroscope
+        RTMath::convertToVector(fifoData + 8, m_imuData.gyro, m_gyroScale, true);
+         // Compass
+        #if MPU9255_FIFO_WITH_COMPASS == 1
+			RTMath::convertToVector(fifoData + 14 + 1, m_imuData.compass, 0.6f, false);
+        #else
+			RTMath::convertToVector(compassData + 1, m_imuData.compass, 0.6f, false);
+		#endif
+    #else // no temp in fifo
+	    // Temperature
+
+        m_imuData.IMUtemperature = ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f; // combined registers and convert to temperature
+        m_imuData.IMUtemperatureValid = true;
+		// ((TEMP_OUT – RoomTemp_Offset)/Temp_Sensitivity) + 21degC
+		// 333.87 = sensitivity
+		// 0 = room temp offset at 21
+        // Gyroscope
+        RTMath::convertToVector(fifoData + 6, m_imuData.gyro, m_gyroScale, true);
+
+		// Compass
+		#if MPU9255_FIFO_WITH_COMPASS == 1 // without temp but with compass in FIFO
+            RTMath::convertToVector(fifoData + 12 + 1, m_imuData.compass, 0.6f, false);
+        #else
+            RTMath::convertToVector(compassData + 1, m_imuData.compass, 0.6f, false);
+        #endif
+	#endif
+
     //  sort out gyro axes
 
     m_imuData.gyro.setX(m_imuData.gyro.x());
@@ -658,18 +728,27 @@ bool RTIMUMPU9255::IMURead()
     m_imuData.compass.setX(m_imuData.compass.y());
     m_imuData.compass.setY(-temp);
 
-    //  now do standard processing
-
-    handleGyroBias();
-    calibrateAverageCompass();
-    calibrateAccel();
-
     if (m_firstTime)
         m_imuData.timestamp = RTMath::currentUSecsSinceEpoch();
     else
         m_imuData.timestamp += m_sampleInterval;
 
     m_firstTime = false;
+	
+    //  now do standard processing
+    if (m_imuData.IMUtemperatureValid == true) {
+        // Check if temperature changed
+        if (fabs(m_imuData.IMUtemperature - m_IMUtemperature_previous) >= TEMPERATURE_DELTA) {
+            // If yes, update bias
+            updateTempBias(m_imuData.IMUtemperature);
+            m_IMUtemperature_previous = m_imuData.IMUtemperature;
+        }
+        // Then do
+        handleTempBias(); 	// temperature Correction
+    }
+    handleGyroBias();
+    calibrateAverageCompass();
+    calibrateAccel();
 
     //  now update the filter
 
@@ -677,5 +756,3 @@ bool RTIMUMPU9255::IMURead()
 
     return true;
 }
-
-
