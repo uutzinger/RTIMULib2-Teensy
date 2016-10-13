@@ -33,7 +33,7 @@ import processing.opengl.*;
 
 Serial myPort;  // Create object from Serial class
 
-final String serialPort = "COM6"; // replace this with your serial port. On windows you will need something like "COM1".
+final String serialPort = "COM3"; // replace this with your serial port. On windows you will need something like "COM1".
 int BAUDRATE = 115200;
 
 float [] q       = new float [4]; // quaternion  

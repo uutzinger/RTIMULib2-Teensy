@@ -112,9 +112,11 @@ public:
 
 	// enables/disables runtime calibration
 	void setGyroRunTimeCalibrationEnable(bool enable) { m_gyroRunTimeCalibrationEnable = enable;}
+	void setGyroManualCalibrationEnable(bool enable)  { m_gyroManualCalibrationEnable = enable;}
     void setAccelRunTimeCalibrationEnable(bool enable) { m_accelRunTimeCalibrationEnable = enable;}
     void setCompassRunTimeCalibrationEnable(bool enable) { m_compassRunTimeCalibrationEnable = enable;}
 	const bool getGyroRunTimeCalibrationEnable()    { return m_gyroRunTimeCalibrationEnable;}
+	const bool getGyroManualCalibrationEnable()     { return m_gyroManualCalibrationEnable;}
     const bool getAccelRunTimeCalibrationEnable()   { return m_accelRunTimeCalibrationEnable;}
     const bool getCompassRunTimeCalibrationEnable() { return m_compassRunTimeCalibrationEnable;}
     const RTVector3& getCompassRunTimeMagCalMax()   { return m_runtimeMagCalMax; }
@@ -202,6 +204,7 @@ protected:
 	bool m_gyroRunTimeCalibrationEnable; 
 	bool m_accelRunTimeCalibrationEnable; 
 	bool m_compassRunTimeCalibrationEnable; 
+    bool m_gyroManualCalibrationEnable;
 
     RTIMU_DATA m_imuData;                                   // the data from the IMU
 
@@ -217,7 +220,8 @@ protected:
 
     RTFLOAT m_gyroLearningAlpha;                            // gyro bias rapid learning rate
     RTFLOAT m_gyroContinuousAlpha;                          // gyro bias continuous (slow) learning rate
-    RTVector3 m_previousAccel;                              // previous step accel for gyro learningboo
+    RTVector3 m_previousAccel;                              // previous step accel for motion detection
+    RTVector3 m_previousGyro;                               // previous step gyro for motion detection
     RTVector3 m_gyroBiasTemp;                               // current bias that is modified in the gyro learning algorithm
     RTVector3 m_gyroBiasCandidate;                          // bias that will become active once all exclusion criteria are met
 	bool m_noMotionStarted;									// the bias algorithm just started

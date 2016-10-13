@@ -61,15 +61,6 @@
 //  this sets the min range (max - min) of values to trigger runtime mag calibration
 #define RTIMU_RUNTIME_MAGCAL_RANGE  30
 
-//  this defines the gyro noise level
-// #define RTIMU_FUZZY_GYRO_ZERO      0.20
-#define RTIMU_FUZZY_GYRO_ZERO      0.07
-// defines the threshold for fast/slow learning
-#define RTIMU_FUZZY_GYRO_BIAS      0.02
-
-//  this defines the accelerometer noise level
-#define RTIMU_FUZZY_ACCEL_ZERO     0.007
-
 //  Axis rotation arrays
 float RTIMU::m_axisRotation[RTIMU_AXIS_ROTATION_COUNT][9] = {
     {1, 0, 0, 0, 1, 0, 0, 0, 1},                    // RTIMU_XNORTH_YEAST
@@ -172,6 +163,7 @@ RTIMU::RTIMU(RTIMUSettings *settings)
     m_temperatureCalibrationMode = false;
 
 	m_gyroRunTimeCalibrationEnable = true;
+	m_gyroManualCalibrationEnable = false;
 	m_accelRunTimeCalibrationEnable = false;
 	m_compassRunTimeCalibrationEnable = false;
 	
@@ -384,16 +376,30 @@ void RTIMU::handleGyroBias()
     RTVector3 deltaAccel = m_previousAccel;
     deltaAccel -= m_imuData.accel;          // compute accel variations
     m_previousAccel = m_imuData.accel;
-    //Serial.printf("Delta Accel: %f, Gyration: %f\n", deltaAccel.length(), m_imuData.gyro.length());
+
+    RTVector3 deltaGyro = m_previousGyro;
+    deltaGyro -= m_imuData.gyro;          // compute accel variations
+    m_previousGyro = m_imuData.gyro;
+	
+    // Serial.printf("Delta Accel: %f, Gyration: %f, Delta Gyration: %f\n", deltaAccel.length(), m_imuData.gyro.length(), deltaGyro.length());
 	m_previousMotion = m_imuData.motion;  // to keep track of motion transitions
+	
 	// is the IMU moving?
-    if ((deltaAccel.length() < RTIMU_FUZZY_ACCEL_ZERO) && (m_imuData.gyro.length() < RTIMU_FUZZY_GYRO_ZERO)) {
+    if ((deltaAccel.length() < RTIMU_FUZZY_ACCEL_ZERO) && (deltaGyro.length() < RTIMU_FUZZY_DELTA_GYRO_ZERO) && (m_imuData.gyro.length() < RTIMU_FUZZY_GYRO_ZERO)) {
 		m_imuData.motion = false;
     } else {
 		m_imuData.motion = true;
 	}
     // if (m_imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } 
-    // is this the start of n sill phase
+    
+	// GyroBias
+	// The goal is to discard the first 0.1 sec of no motion and the last 0.1 sec of no motion
+	// from bias updates
+	// bias update is passed through low pass filter
+    //
+    // Start of still phase?
+	//   Is this the start of a still phase?
+	//   Then prepare for potential bias updates
 	if ((m_previousMotion == true) && (m_imuData.motion==false)) { 
 		// initialize potential bias update
 		m_intervalCount=0; //
@@ -404,11 +410,6 @@ void RTIMU::handleGyroBias()
 	    // Serial.println("IMU transitioned from motion to still");
 		m_noMotionStarted = true;
 	}
-	// GyroBias
-	// The goal is to discard the first 0.1 sec of no motion and the last 0.1 sec of no motion
-	// from bias updates
-
-	// bias update is passed through low pass filter
 	//
     if ( m_gyroRunTimeCalibrationEnable ) {
 		if (!m_imuData.motion) { // Update Gyro Bias if there is no motion
@@ -453,7 +454,11 @@ void RTIMU::handleGyroBias()
 			// Serial.println("Gyro bias saved in EEPROM");
 		} 
 	} // runtimeCalibrationEnable
-		
+
+    if ( m_gyroManualCalibrationEnable ) {
+		m_settings->m_gyroBias = m_settings->m_gyroBias * (1.0 - m_gyroLearningAlpha) + m_imuData.gyro * m_gyroLearningAlpha;
+	}
+
 	// Apply Gyro Bias
 	if (getGyroCalibrationValid()) {
 		m_imuData.gyro -= m_settings->m_gyroBias;
@@ -700,7 +705,7 @@ bool RTIMU::IMUGyroBiasValid()
     return m_settings->m_gyroBiasValid;
 }
 
- void RTIMU::setExtIMUData(RTFLOAT gx, RTFLOAT gy, RTFLOAT gz, RTFLOAT ax, RTFLOAT ay, RTFLOAT az,
+void RTIMU::setExtIMUData(RTFLOAT gx, RTFLOAT gy, RTFLOAT gz, RTFLOAT ax, RTFLOAT ay, RTFLOAT az,
         RTFLOAT mx, RTFLOAT my, RTFLOAT mz, uint64_t timestamp)
  {
      m_imuData.gyro.setX(gx);

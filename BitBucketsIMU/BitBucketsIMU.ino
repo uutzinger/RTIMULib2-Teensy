@@ -1,4 +1,4 @@
-////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////;////////////////////////////////////////
 //
 //  This file is part of RTIMULib2-Teensy
 //
@@ -58,13 +58,13 @@ bool INAVAIL=false;                                   // is it time to check for
 bool VERBOSE=false;                                   // set HEX or text mode
 bool CUBE=false;                                      // set output format for 4183 Robot or CUBE display program
 bool ACCELCALIBRATE = false;                          // enable runtime accel calibration
-bool SERIAL_REPORTING = false; 						  // minimal output when boot
-bool COMPASS_ENABLE = false;   					      // boot conditions for compass
+bool SERIAL_REPORTING = false; 	          					  // minimal output when boot
+bool COMPASS_ENABLE = false;   					              // boot conditions for compass
 bool GYRO_CALIBRATED = false;                         // keep track if gyro is calibrated when system is still
 bool PRESSURE_ENABLE = false;                         // disable pressure detection
 bool HUMIDITY_ENABLE = false;                         // disable humidity detection
-float slerpPower = 0.02;                             // Fusion convergence
-const int ledPin = 2; // Check on https://www.pjrc.com/teensy/pinout.html; pin should not interfere with I2C and SPI
+float slerpPower = 0.02;                              // Fusion convergence
+const int ledPin = 2;                                 // Check on https://www.pjrc.com/teensy/pinout.html; pin should not interfere with I2C and SPI
 bool ledStatus = false;                               // status of external LED indicator
 int  inByte = 0;                                      // serial input buffer, one byte
 
@@ -84,6 +84,11 @@ byte systemStatusIMU = B00000000;
 #define STATE_ACCELVALID            3
 #define STATE_COMPASSVALID          4
 #define STATE_IMUTEMPVALID          5
+
+// IMU Update bits
+byte systemUpdateIMU = B00000000;
+#define STATE_ACCELRUNTIMEUPDATE    4
+#define STATE_GYROMANUALUPDATE      5
 #define STATE_GYRORUNTIMEUPDATE     6
 #define STATE_COMPASSRUNTIMEUPDATE  7
 
@@ -103,6 +108,10 @@ float lastCompassHeading;
 float compassHeadingDelta;
 float lastYaw;
 float yawDelta;
+float previousAccelLength;
+float previousGyroLength;
+float previousCompassLength;
+
 RunningAverage compassHeading_avg(5);                 // Running average for heading (noise reduction)
 RTVector3 comp;                                       // to compute earh field strength
 RTVector3 residuals;                                  // gravity subtracted acceleration
@@ -129,7 +138,8 @@ bool lastMotion=false, motionStarted=false, motionEnded=false;
 void setup()
 {
   int errcode;
-  
+
+  // Setup monitor pin
   pinMode(ledPin, OUTPUT);
   digitalWrite(ledPin, LOW);
   ledStatus = false;
@@ -141,9 +151,11 @@ void setup()
   Wire.begin();
   settings = new RTIMUSettings();
   // change configurations here if you need to as there is no SD card and therefore no ini file.
-  settings->setDeclination(9.97f*3.141f/180.0f); // Magnetic Declination in Tucson AZ
+  settings->setDeclination(9.97f*3.141f/180.0f);           // Magnetic Declination in Tucson AZ
     
   imu = RTIMU::createIMU(settings);                        // create the imu object
+  imu->setGyroRunTimeCalibrationEnable(false);             // turn off gyro bias calibration at startup, allow system to equiblirate first
+  
   if (SERIAL_REPORTING) {Serial.print("TeensyIMU starting using device "); Serial.println(imu->IMUName());}
 
 	if (PRESSURE_ENABLE == true) {
@@ -222,12 +234,12 @@ void setup()
   gravity.setZ(1);
 
   // dry run of the system
-  int i=0; // dry run
+  int i=0;
   while (i < 80) {
-    if  (imu->IMURead()) {
-      i++;
-    }
+    if  (imu->IMURead()) { i++; }
   }
+
+  imu->setGyroRunTimeCalibrationEnable(true);     // enable background gyro calibration
 
   // Compute normalization factor for earts magnetic field
   comp.zero();
@@ -399,7 +411,7 @@ void loop()
           INAVAIL = false;
         }
 
-	      // Check if gyro bias has adated
+        // Check if gyro bias has adapted
         // The noise on the 9150 gyroscope is about 0.002
         if ((imuData.motion == false) && (imuData.gyro.length() <= 0.01)) {
           GYRO_CALIBRATED = true;
@@ -415,15 +427,18 @@ void loop()
             Serial.println("-Data----");
             Serial.print(RTMath::displayRadians("Gyro [r/s]", imuData.gyro));      // gyro data
             Serial.print(RTMath::displayRadians("Accel  [g]", imuData.accel));     // accel data
-            imuData.compass=imuData.compass*magFieldNormScale;                 // compass in uT
-            Serial.print(RTMath::displayRadians("Mag   [uT]", imuData.compass));     // compass data
-            Serial.print(RTMath::displayDegrees("Pose", imuData.fusionPose)); // fused output
+            imuData.compass=imuData.compass*magFieldNormScale;                     // compass in uT
+            Serial.print(RTMath::displayRadians("Mag   [uT]", imuData.compass));   // compass data
+            Serial.print(RTMath::displayDegrees("Pose", imuData.fusionPose));      // fused output
             gyro_avg.addValue(imuData.gyro.length());
             accel_avg.addValue(imuData.accel.length());
             compass_avg.addValue(imuData.compass.length());
-            Serial.printf("Average Gyro: %+4.3f, ", gyro_avg.getAverage());
-            Serial.printf("Accel: %+4.3f, ", accel_avg.getAverage());
-            Serial.printf("Compass: %+4.3f \n", compass_avg.getAverage());
+            Serial.printf("Average Gyro: %+4.3f, %+4.3f, ", gyro_avg.getAverage(),imuData.gyro.length()-previousGyroLength);
+            previousGyroLength=imuData.gyro.length();
+            Serial.printf("Accel: %+4.3f, %+4.3f, ", accel_avg.getAverage(),imuData.accel.length()-previousAccelLength);
+            previousAccelLength=imuData.accel.length();
+            Serial.printf("Compass: %+4.3f, %+4.3f\n", compass_avg.getAverage(), imuData.compass.length()-previousCompassLength);
+            previousCompassLength=imuData.compass.length();
             Serial.println("--Calib--");
             if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
             Serial.print(RTMath::displayRadians("Acc Max", settings->m_accelCalMax ));       // 
@@ -439,6 +454,7 @@ void loop()
             Serial.print("Runtime Calibrating: ");
             Serial.printf("%s", ACCELCALIBRATE ? "Accelerometer, " : "");  
             Serial.printf("%s", imu->getCompassRunTimeCalibrationEnable() ? "Compass, " : "");
+            Serial.printf("%s", imu->getGyroManualCalibrationEnable() ? "Gyroscope Manual, " : "");
             Serial.printf("%s", imu->getGyroRunTimeCalibrationEnable() ? "Gyroscope" : "");  
             Serial.println(".");
             Serial.println("--Aux----");
@@ -539,6 +555,7 @@ void loop()
           STREAM=true;
         } else if (inByte == 'P') { // reset position
           worldLocation.zero();
+          worldVelocityBias.zero();
         } else if (inByte == 'V') { // send verbose
           VERBOSE=true;
         } else if (inByte == 'v') { // send HEX
@@ -551,14 +568,24 @@ void loop()
           settings->saveSettings();
         } else if (inByte == 'r') { // turn off Gyroscope runtime calibration
           imu->setGyroRunTimeCalibrationEnable(false);
-          bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+          bitWrite(systemUpdateIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
         } else if (inByte == 'R') { // turn on Gyroscope runtime calibration
           imu->setGyroRunTimeCalibrationEnable(true);
-          bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
-        } else if (inByte == 'c') { // accelerometer runtime calibration off
+          bitWrite(systemUpdateIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+        } else if (inByte == 'd') { // turn off Gyroscope manual calibration
+          imu->setGyroManualCalibrationEnable(false);
+          bitWrite(systemUpdateIMU, STATE_GYROMANUALUPDATE, imu->getGyroManualCalibrationEnable() );
+        } else if (inByte == 'D') { // turn on Gyroscope manual calibration
+          imu->setGyroRunTimeCalibrationEnable(false); // can not run runtime and manual same time
+          bitWrite(systemUpdateIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+          imu->setGyroManualCalibrationEnable(true);
+          bitWrite(systemUpdateIMU, STATE_GYROMANUALUPDATE, imu->getGyroManualCalibrationEnable() );
+         } else if (inByte == 'c') { // accelerometer runtime calibration off
             ACCELCALIBRATE=false;
+            bitWrite(systemUpdateIMU, STATE_ACCELRUNTIMEUPDATE, ACCELCALIBRATE );
         } else if (inByte == 'C') { // accelerometer runtime calibration on
             ACCELCALIBRATE=true;
+            bitWrite(systemUpdateIMU, STATE_ACCELRUNTIMEUPDATE, ACCELCALIBRATE );
             // gyroscope saves settings automatically, turn it off
             imu->setGyroRunTimeCalibrationEnable(false);
             bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
@@ -590,6 +617,7 @@ void loop()
             Serial.println("c/C to deactive/activate runtime acceleration calibration.");
             Serial.println("Gyroscope calibration can run in the background.");
             Serial.println("r/R to deactive/activate runtime gyroscope bias update");
+            Serial.println("d/D to deactive/activate manual gyroscope bias calculation");
             Serial.println("Compass calibration needs to be completed for all axes before fusion operates correctly.");
             Serial.println("u/U to deactive/activate runtime compass Max/Min update");
             Serial.println("i to reset compass runtime max/min");
@@ -642,8 +670,11 @@ void IMUStatusUpdate(){
     bitWrite(systemStatusIMU, STATE_ACCELVALID, imuData.accelValid); 
     bitWrite(systemStatusIMU, STATE_COMPASSVALID, imuData.compassValid); 
     bitWrite(systemStatusIMU, STATE_IMUTEMPVALID, imuData.IMUtemperatureValid);
-    bitWrite(systemStatusIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
-    bitWrite(systemStatusIMU, STATE_COMPASSRUNTIMEUPDATE, imu->getCompassRunTimeCalibrationEnable() );
+    //--Update
+    bitWrite(systemUpdateIMU, STATE_ACCELRUNTIMEUPDATE, ACCELCALIBRATE );
+    bitWrite(systemUpdateIMU, STATE_GYROMANUALUPDATE, imu->getGyroManualCalibrationEnable() );
+    bitWrite(systemUpdateIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
+    bitWrite(systemUpdateIMU, STATE_COMPASSRUNTIMEUPDATE, imu->getCompassRunTimeCalibrationEnable() );
     //--Aux
     bitWrite(systemStatusAUX, STATE_PRESSUREVALID, imuData.pressureValid);
     bitWrite(systemStatusAUX, STATE_PRESSURETEMPVALID, imuData.pressureTemperatureValid); 
