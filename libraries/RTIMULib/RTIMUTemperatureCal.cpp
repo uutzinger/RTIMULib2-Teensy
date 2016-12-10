@@ -21,52 +21,54 @@
 //  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#define HUMIDITY_AVG_HISTORY   100                     // size of moving average filter 
+
+// UU: This code was create to
+// provide temperature bias compensation
 
 
-#include "RTHumidity.h"
+#include "RTIMUTemperatureCal.h"
 
-#include "RTHumidityHTS221.h"
-#include "RTHumidityHTU21D.h"
-
-RTHumidity *RTHumidity::createHumidity(RTIMUSettings *settings)
-{
-    switch (settings->m_humidityType) {
-    case RTHUMIDITY_TYPE_HTS221:
-        return new RTHumidityHTS221(settings);
-
-    case RTHUMIDITY_TYPE_HTU21D:
-        return new RTHumidityHTU21D(settings);
-
-    case RTHUMIDITY_TYPE_AUTODISCOVER:
-        if (settings->discoverHumidity(settings->m_humidityType, settings->m_I2CHumidityAddress)) {
-            settings->saveSettings();
-            return RTHumidity::createHumidity(settings);
-        }
-        return NULL;
-
-    case RTHUMIDITY_TYPE_NULL:
-        return NULL;
-
-    default:
-        return NULL;
-    }
-}
-
-
-RTHumidity::RTHumidity(RTIMUSettings *settings)
+RTIMUTemperatureCal::RTIMUTemperatureCal(RTIMUSettings *settings)
 {
     m_settings = settings;
-    m_humidity_avg = new RunningAverage(HUMIDITY_AVG_HISTORY);
 }
 
-RTHumidity::~RTHumidity()
+RTIMUTemperatureCal::~RTIMUTemperatureCal()
+{
+
+}
+
+void RTIMUTemperatureCal::temperatureCalInit()
+{
+
+}
+
+void RTIMUTemperatureCal::temperatureCalReset()
 {
 }
 
-RTFLOAT RTHumidity::updateAverageHumidity(RTFLOAT& humidity) 
+bool RTIMUTemperatureCal::newData(const RTVector3& accel, const RTVector3& gyro, const RTVector3& mag, const RTFLOAT& temperature)
 {
-    // this needs two component because of 0 - 360 jump at North 
-    m_humidity_avg->addValue(humidity);
-    return m_humidity_avg->getAverage();
+    return true;
+}
+
+bool RTIMUTemperatureCal::temperatureCalValid()
+{
+    return true;
+}
+
+TEMPERATURE_CAL_DATA RTIMUTemperatureCal::removeTemperatureCalData()
+{
+    TEMPERATURE_CAL_DATA ret;
+    return ret;
+}
+
+bool RTIMUTemperatureCal::temperatureCalSaveRaw(const char *ellipsoidFitPath)
+{
+  return true;
+}
+
+bool RTIMUTemperatureCal::temperatureCalSaveCorr(const char *ellipsoidFitPath)
+{
+  return true;
 }

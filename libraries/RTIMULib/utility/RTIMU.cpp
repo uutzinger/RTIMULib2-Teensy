@@ -142,7 +142,6 @@ RTIMU *RTIMU::createIMU(RTIMUSettings *settings)
     }
 }
 
-
 RTIMU::RTIMU(RTIMUSettings *settings)
 {
     m_settings = settings;
@@ -410,7 +409,8 @@ void RTIMU::handleGyroBias()
 	    // Serial.println("IMU transitioned from motion to still");
 		m_noMotionStarted = true;
 	}
-	//
+	
+	// GyroBias
     if ( m_gyroRunTimeCalibrationEnable ) {
 		if (!m_imuData.motion) { // Update Gyro Bias if there is no motion
 			m_intervalCount++; 
@@ -544,8 +544,8 @@ void RTIMU::calibrateAverageCompass()
                     m_compassCalOffset[i] = (m_runtimeMagCalMax.data(i) + m_runtimeMagCalMin.data(i)) / 2.0;
                 }
 				
-				m_settings->m_accelCalMax = m_runtimeMagCalMax;
-				m_settings->m_accelCalMin = m_runtimeMagCalMin;
+				m_settings->m_compassCalMax = m_runtimeMagCalMax;
+				m_settings->m_compassCalMin = m_runtimeMagCalMin;
 				
             }
         }
@@ -613,52 +613,51 @@ void RTIMU::resetCompassRunTimeMaxMin()
 
 void RTIMU::calibrateAccel()
 {
-    if ((getAccelCalibrationValid()==false) && (m_accelCalibrationMode==false) )
-        return;
-	
-    // printf("%s", RTMath::displayRadians("Accel 1)", m_imuData.accel));
 
-    if (m_imuData.accel.x() >= 0)
-        m_imuData.accel.setX(m_imuData.accel.x() / m_settings->m_accelCalMax.x());
-    else
-        m_imuData.accel.setX(m_imuData.accel.x() / -m_settings->m_accelCalMin.x());
+    if (getAccelCalibrationValid() ) {
 
-    if (m_imuData.accel.y() >= 0)
-        m_imuData.accel.setY(m_imuData.accel.y() / m_settings->m_accelCalMax.y());
-    else
-        m_imuData.accel.setY(m_imuData.accel.y() / -m_settings->m_accelCalMin.y());
+		// printf("%s", RTMath::displayRadians("Accel 1)", m_imuData.accel));
 
-    if (m_imuData.accel.z() >= 0)
-        m_imuData.accel.setZ(m_imuData.accel.z() / m_settings->m_accelCalMax.z());
-    else
-        m_imuData.accel.setZ(m_imuData.accel.z() / -m_settings->m_accelCalMin.z());
+		if (m_imuData.accel.x() >= 0)
+			m_imuData.accel.setX(m_imuData.accel.x() / m_settings->m_accelCalMax.x());
+		else
+			m_imuData.accel.setX(m_imuData.accel.x() / -m_settings->m_accelCalMin.x());
 
-    // printf("%s", RTMath::displayRadians("Accel 2)", m_imuData.accel));
+		if (m_imuData.accel.y() >= 0)
+			m_imuData.accel.setY(m_imuData.accel.y() / m_settings->m_accelCalMax.y());
+		else
+			m_imuData.accel.setY(m_imuData.accel.y() / -m_settings->m_accelCalMin.y());
 
-    if (m_settings->m_accelCalEllipsoidValid) {
-        RTVector3 ev = m_imuData.accel;
-        ev -= m_settings->m_accelCalEllipsoidOffset;
+		if (m_imuData.accel.z() >= 0)
+			m_imuData.accel.setZ(m_imuData.accel.z() / m_settings->m_accelCalMax.z());
+		else
+			m_imuData.accel.setZ(m_imuData.accel.z() / -m_settings->m_accelCalMin.z());
 
-        m_imuData.accel.setX(ev.x() * m_settings->m_accelCalEllipsoidCorr[0][0] +
-            ev.y() * m_settings->m_accelCalEllipsoidCorr[0][1] +
-            ev.z() * m_settings->m_accelCalEllipsoidCorr[0][2]);
+		// printf("%s", RTMath::displayRadians("Accel 2)", m_imuData.accel));
 
-        m_imuData.accel.setY(ev.x() * m_settings->m_accelCalEllipsoidCorr[1][0] +
-            ev.y() * m_settings->m_accelCalEllipsoidCorr[1][1] +
-            ev.z() * m_settings->m_accelCalEllipsoidCorr[1][2]);
+		if (m_settings->m_accelCalEllipsoidValid) {
+			RTVector3 ev = m_imuData.accel;
+			ev -= m_settings->m_accelCalEllipsoidOffset;
 
-        m_imuData.accel.setZ(ev.x() * m_settings->m_accelCalEllipsoidCorr[2][0] +
-            ev.y() * m_settings->m_accelCalEllipsoidCorr[2][1] +
-            ev.z() * m_settings->m_accelCalEllipsoidCorr[2][2]);
-    }
+			m_imuData.accel.setX(ev.x() * m_settings->m_accelCalEllipsoidCorr[0][0] +
+				ev.y() * m_settings->m_accelCalEllipsoidCorr[0][1] +
+				ev.z() * m_settings->m_accelCalEllipsoidCorr[0][2]);
 
-    // printf("%s", RTMath::displayRadians("Accel 3)", m_imuData.accel));
+			m_imuData.accel.setY(ev.x() * m_settings->m_accelCalEllipsoidCorr[1][0] +
+				ev.y() * m_settings->m_accelCalEllipsoidCorr[1][1] +
+				ev.z() * m_settings->m_accelCalEllipsoidCorr[1][2]);
 
+			m_imuData.accel.setZ(ev.x() * m_settings->m_accelCalEllipsoidCorr[2][0] +
+				ev.y() * m_settings->m_accelCalEllipsoidCorr[2][1] +
+				ev.z() * m_settings->m_accelCalEllipsoidCorr[2][2]);
+		}
+		// printf("%s", RTMath::displayRadians("Accel 3)", m_imuData.accel));
+	}
 }
 
 // UU automatic Accel Max/Min calibration/adjustment
 // When there is no motion the sensor should experience 1g
-// Adjust Max/Min weighted by the magnitude of the acceleration in x/y/z
+ // Adjust Max/Min weighted by the magnitude of the acceleration in x/y/z
 // so that the Max/Min is adjusted most where acceleration is largest
 // Pass adjustment through low pass filter
 
@@ -676,19 +675,19 @@ void RTIMU::runtimeAdjustAccelCal()
         // printf("%s", RTMath::displayRadians("AccelMin", m_settings->m_accelCalMin));
          
         if (m_imuData.accel.x() >= 0)
-            m_settings->m_accelCalMax.setX( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMax.x() + ACCEL_ALPHA * ( m_settings->m_accelCalMax.x() * (1.0 + m_imuData.accel.x() * c) ));
+            m_settings->m_accelCalMax.setX( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMax.x() + ACCEL_ALPHA * ( m_settings->m_accelCalMax.x() * (1.0 + (m_imuData.accel.x() * c)) ));
         else
-            m_settings->m_accelCalMin.setX( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMin.x() + ACCEL_ALPHA * ( m_settings->m_accelCalMin.x() * (1.0 - m_imuData.accel.x() * c) ));
+            m_settings->m_accelCalMin.setX( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMin.x() + ACCEL_ALPHA * ( m_settings->m_accelCalMin.x() * (1.0 - (m_imuData.accel.x() * c)) ));
 
         if (m_imuData.accel.y() >= 0)
-            m_settings->m_accelCalMax.setY( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMax.y() + ACCEL_ALPHA * ( m_settings->m_accelCalMax.y() * (1.0 + m_imuData.accel.y() * c) ));
+            m_settings->m_accelCalMax.setY( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMax.y() + ACCEL_ALPHA * ( m_settings->m_accelCalMax.y() * (1.0 + (m_imuData.accel.y() * c)) ));
         else
-            m_settings->m_accelCalMin.setY( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMin.y() + ACCEL_ALPHA * ( m_settings->m_accelCalMin.y() * (1.0 - m_imuData.accel.y() * c) ));
+            m_settings->m_accelCalMin.setY( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMin.y() + ACCEL_ALPHA * ( m_settings->m_accelCalMin.y() * (1.0 - (m_imuData.accel.y() * c)) ));
 
         if (m_imuData.accel.z() >= 0)
-            m_settings->m_accelCalMax.setZ( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMax.z() + ACCEL_ALPHA * ( m_settings->m_accelCalMax.z() * (1.0 + m_imuData.accel.z() * c) ));
+            m_settings->m_accelCalMax.setZ( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMax.z() + ACCEL_ALPHA * ( m_settings->m_accelCalMax.z() * (1.0 + (m_imuData.accel.z() * c)) ));
         else
-            m_settings->m_accelCalMin.setZ( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMin.z() + ACCEL_ALPHA * ( m_settings->m_accelCalMin.z() * (1.0 - m_imuData.accel.z() * c) ));
+            m_settings->m_accelCalMin.setZ( (1.0 - ACCEL_ALPHA) * m_settings->m_accelCalMin.z() + ACCEL_ALPHA * ( m_settings->m_accelCalMin.z() * (1.0 - (m_imuData.accel.z() * c)) ));
 
         //printf("%s", RTMath::displayRadians("AccelMax", m_settings->m_accelCalMax));
         //printf("%s", RTMath::displayRadians("AccelMin", m_settings->m_accelCalMin));

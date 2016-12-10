@@ -76,6 +76,7 @@ protected:
     float     m_dtmotion;
 	
     RTVector3  m_previousAccel;
+    RTVector3  m_previousGyro;
     
     RunningAverage *m_accnorm_avg;   // Running average for acceleration (motion detection)
     RunningAverage *m_accnorm_var;   // Running average for acceleration variance (motion detection)

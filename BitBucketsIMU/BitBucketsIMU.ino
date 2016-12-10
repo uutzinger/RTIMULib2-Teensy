@@ -151,7 +151,7 @@ void setup()
   Wire.begin();
   settings = new RTIMUSettings();
   // change configurations here if you need to as there is no SD card and therefore no ini file.
-  settings->setDeclination(9.97f*3.141f/180.0f);           // Magnetic Declination in Tucson AZ
+  settings->setDeclination(-9.97f*3.141f/180.0f);           // Magnetic Declination in Tucson AZ
     
   imu = RTIMU::createIMU(settings);                        // create the imu object
   imu->setGyroRunTimeCalibrationEnable(false);             // turn off gyro bias calibration at startup, allow system to equiblirate first
@@ -413,7 +413,7 @@ void loop()
 
         // Check if gyro bias has adapted
         // The noise on the 9150 gyroscope is about 0.002
-        if ((imuData.motion == false) && (imuData.gyro.length() <= 0.01)) {
+        if ((imuData.motion == false) && (imuData.gyro.length() <= 0.003)) {
           GYRO_CALIBRATED = true;
         } else {
           GYRO_CALIBRATED = false;
@@ -430,6 +430,9 @@ void loop()
             imuData.compass=imuData.compass*magFieldNormScale;                     // compass in uT
             Serial.print(RTMath::displayRadians("Mag   [uT]", imuData.compass));   // compass data
             Serial.print(RTMath::displayDegrees("Pose", imuData.fusionPose));      // fused output
+            Serial.print(RTMath::display("Quat", imuData.fusionQPose));            // fused quaternion output
+            //Serial.printf("Heading from Quat: %+4.3f\n", imuData.fusionQPose.toHeading(imuData.compass, settings->m_compassAdjDeclination)*RTMATH_RAD_TO_DEGREE);
+            Serial.printf("Compass based Heading: %+4.3f\n", compassHeading_avg.getAverage()*RTMATH_RAD_TO_DEGREE);
             gyro_avg.addValue(imuData.gyro.length());
             accel_avg.addValue(imuData.accel.length());
             compass_avg.addValue(imuData.compass.length());
@@ -439,8 +442,8 @@ void loop()
             previousAccelLength=imuData.accel.length();
             Serial.printf("Compass: %+4.3f, %+4.3f\n", compass_avg.getAverage(), imuData.compass.length()-previousCompassLength);
             previousCompassLength=imuData.compass.length();
-            Serial.println("--Calib--");
             if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
+            Serial.println("--Calib--");
             Serial.print(RTMath::displayRadians("Acc Max", settings->m_accelCalMax ));       // 
             Serial.print(RTMath::displayRadians("Acc Min", settings->m_accelCalMin ));       // 
             Serial.print(RTMath::displayRadians("Mag Max", settings->m_compassCalMax ));     // 
@@ -815,5 +818,4 @@ void serialLongPrint(unsigned long l) {
     Serial.print(c2);
   }
 }
-
 

@@ -93,24 +93,20 @@ Three calibration procedures have been built in:
 2) Accelerometer calibration can be engaged when the sensor is held still. Ideally it is moved to a few different poses and when calibration is activated it will adjust values until 1g is read. Repeat the calibration a few times in all three directions in positive and negative direction. Axes do not need to be aligned perfectly.
 3) Compass calibration. The new version of RTIMU has realtime compass calibration. This routine is activated and one will need to rotate the sensor to the maximum and minimum readings in all directions. Please be aware that magnetic field points into ground on northern hemisphere as well as towards north.
 
-### TeensyMagCal
-This sketch can be used to calibrate the magnetometers and should be run before trying to generate fused pose data. It also needs to be rerun at any time that the configuration is changed (such as different IMU or different IMU reference orientation). Load the sketch and all three axis of the IMU towards North and along the magnetic field lines, making sure all axes reach their minima and maxima. The display will stop updating when this occurs. Then, enter 's' followed by enter into the IDE serial monitor to save the data.
-This calibration should be run in a distortion free environment.
+### TeensyCal
+This sketch needs to be run to calibrate accelerometer, compass and gyroscope data.
+It needs to be rerun at any time that the configuration is changed (such as different IMU or different IMU reference orientation)
 
-### TeensyAccelCal
-This sketch allows updating the max/min data of the calibration files and does not require the sensor to be aligned with one axis as it will proportionally change max & min values until the recorded acceleration is 1g.
-Make sure the sensor is still, then enable calibration by entering 'A'. After about a second enter 'a' and flip the compass towards opposite direction and repeat the process. Repeat this process until the sensor shows 1g in all possible directions.
+The compass should be calibrated before trying to generate fused pose data. Easiest is to align all three axis of the IMU towards North and along the magnetic field lines, making sure all axes reach their minima and maxima. The display will stop updating when this occurs. Then, enter 's' followed by enter into the IDE serial monitor to save the data. This calibration should be run in a distortion free environment.
+
+The accelerometer calibration updates the max/min data. It is best to first tune the max/min by aligning the sensor x/y/zwith gravity and a manal calibration. Afterwards on can align the sensor further with the turntime calbration until the sensor records an acceleration is 1g. For runtime calibration make sure the sensor is still, then enable calibration by entering 'A'. After about a second enter 'a' and flip the compass towards opposite direction and repeat the process. Repeat this process until the sensor shows 1g in all possible directions.
 Enter 's' to save the data.
-Do not run autocalibration or update max/min data when you move the sensor!
 
-### TeensyGyroCal
-This will run the sensor for a while and then save the gyro bias values in the EEPROM. Bias values are also updated during runtime when the sensor is not moving.
-
-### TeensyIMU
-TeensyIMU is the main demo sketch. It configures the IMU based on settings in RTIMUSettings.cpp. Change these to alter any of the parameters or edit the RTIMULib.ini file after auto-detection.
+The gyroscope has a bias compensation so that the sensor reads no gyration if it is not moving. This calibraiton runs in the background and can take a few minutes until bias is established.
+One calirated save the values in the EEPROM. Bias values are also updated during runtime by default when the sensor is not moving and written to EEPROM on a regular basis.
 
 ### TeensyIMU10/11
-This is exactly the same as TeensyIMU except that it adds support for a pressure/humidity sensor. If a pressure sensor was found during auto-detection, this will be used by the sketch. If not pressure sensors were found, the sketch will report this and stop.
+This is an example program including pressure/humidity sensor. If a pressure sensor was found during auto-detection, this will be used by the sketch. If not pressure sensors were found, the sketch will report this and stop.
 
 ### TeensyAccel
 This is similar to TeensyIMU except that it subtracts the rotated gravity vector from the accelerometer outputs in order to obtain the residual accelerations - i.e. those not attributable to gravity.

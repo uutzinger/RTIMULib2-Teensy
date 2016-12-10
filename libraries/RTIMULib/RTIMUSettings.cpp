@@ -366,17 +366,23 @@ bool RTIMUSettings::discoverIMU(int& imuType, bool& busIsI2C, unsigned char& sla
 
     if (HALOpen()) {
         if (HALRead(MPU9250_ADDRESS0, MPU9250_WHO_AM_I, 1, &result, "")) {
-            if (result == MPU9250_ID) {
+			
+            if (result == MPU9255_ID) {
+                imuType = RTIMU_TYPE_MPU9255;
+                slaveAddress = MPU9255_ADDRESS0;
+                busIsI2C = false;
+                HAL_INFO("Detected MPU9255 on SPI bus 0, select 0\n");
+                return true;
+            } else if (result == MPU9250_ID) {
                 imuType = RTIMU_TYPE_MPU9250;
                 slaveAddress = MPU9250_ADDRESS0;
                 busIsI2C = false;
-                HAL_INFO1("Detected MPU9250 on SPI bus 0, select %d\n", IMU_CHIP_SELECT);
+                HAL_INFO("Detected MPU9250 on SPI bus 0, select 1\n");
                 return true;
-            }
+			}
         }
         HALClose();
     }
-
     HAL_ERROR("No IMU detected\n");
     return false;
 }
@@ -1421,7 +1427,7 @@ bool RTIMUSettings::saveSettings()
     setComment("");
 
     setBlank();
-    setComment("Compass calibration");
+    setComment("Compass calibration settings");
     setValue(RTIMULIB_COMPASSCAL_VALID, m_compassCalValid);
     setValue(RTIMULIB_COMPASSCAL_MINX, m_compassCalMin.x());
     setValue(RTIMULIB_COMPASSCAL_MINY, m_compassCalMin.y());

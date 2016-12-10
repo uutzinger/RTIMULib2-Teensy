@@ -74,7 +74,7 @@ bool RTMotion::detectMotion(RTVector3& acc, RTVector3& gyr) {
 // Any of the two triggers motion
 //
   
-  bool accnorm_var_test, omega_test;
+  bool accnorm_var_test, omega_test, omega_var_test;
   
   // ACCELEROMETER
   ////////////////
@@ -84,17 +84,38 @@ bool RTMotion::detectMotion(RTVector3& acc, RTVector3& gyr) {
   deltaAccel -= acc;   // compute difference
   m_previousAccel = acc;
   // printf("Delta Acc: %4.3f ",  deltaAccel.length());
-  if (deltaAccel.length() < RTIMU_FUZZY_ACCEL_ZERO) { accnorm_var_test = false; } else { accnorm_var_test = true; }
+  if (deltaAccel.length() < RTIMU_FUZZY_ACCEL_ZERO) {
+	  accnorm_var_test = false; 
+  } else {
+	  accnorm_var_test = true; 
+  }
 
   // GYRO
   ////////////////
+  RTVector3 deltaGyro = m_previousGyro;
+  deltaGyro -= gyr;     // compute gyro variations
+  m_previousGyro = gyr;
   // printf("Gyration: %4.3f ",  gyr.length());
-  if (gyr.length() < RTIMU_FUZZY_GYRO_ZERO) { omega_test = false; } else { omega_test = true; }
-  //printf("Test: %d %d\n",  accnorm_var_test, omega_test );
+ 
+  if (deltaGyro.length() < RTIMU_FUZZY_DELTA_GYRO_ZERO) { 
+
+    omega_var_test = false; 
+  } else { 
+    omega_var_test = true; 
+  }
   
+  if (gyr.length() < RTIMU_FUZZY_GYRO_ZERO) { 
+    omega_test = false; 
+  } else { 
+    omega_test = true; 
+  }
+
+  //printf("Delta Accel: %f, Gyration: %f, Delta Gyration: %f\n", deltaAccel.length(), m_imuData.gyro.length(), deltaGyro.length());
+  //printf("Test: %d %d %d\n",  accnorm_var_test, omega_test, omega_var_test );
+ 
   // Combine acceleration test, acceleration deviation test and gyro test
   ///////////////////////////////////////////////////////////////////////
-  if (omega_test || accnorm_var_test) { 
+  if (omega_test || accnorm_var_test || omega_var_test) { 
     return true; 
   } else { 
     return false;

@@ -20,39 +20,114 @@
 //  HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 //  OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 //  SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-
 #include "RTIMUAccCal.h"
+
+//  ACCEL_ALPHA control the smoothing - the lower it is, the smoother it is
+#define ACCEL_ALPHA                     0.1f
 
 RTIMUAccCal::RTIMUAccCal(RTIMUSettings *settings)
 {
     m_settings = settings;
+    for (int i = 0; i < 3; i++)
+        m_accelCalEnable[i] = false; // disable X, Y and Z calibration
 }
 
 RTIMUAccCal::~RTIMUAccCal()
 {
 }
 
-void RTIMUAccCal::accCalInit()
+void RTIMUAccCal::accelCalInit()
 {
-    accCalReset();
+    if (m_settings->m_accelCalValid) {
+        m_accelMin = m_settings->m_accelCalMin;
+        m_accelMax = m_settings->m_accelCalMax;
+    } else {
+        m_accelMin = RTVector3(RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN);
+        m_accelMax = RTVector3(RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX);
+    }
+    // accCalReset();
+}
+
+void RTIMUAccCal::accelCalReset()
+{
+	m_accelMin = RTVector3(RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN);
+    m_accelMax = RTVector3(RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX);
 }
 
 void RTIMUAccCal::accCalReset()
 {
-  if (m_settings->m_accelCalValid == false) {
-	m_settings->m_accelCalMax.setX(1.0f);
-	m_settings->m_accelCalMax.setY(1.0f);
-	m_settings->m_accelCalMax.setZ(1.0f);
-	m_settings->m_accelCalMin.setX(-1.0f);
-	m_settings->m_accelCalMin.setY(-1.0f);
-	m_settings->m_accelCalMin.setZ(-1.0f);
-  }
+	if (m_settings->m_accelCalValid == false) {
+		m_settings->m_accelCalMax.setX(1.0f);
+		m_settings->m_accelCalMax.setY(1.0f);
+		m_settings->m_accelCalMax.setZ(1.0f);
+		m_settings->m_accelCalMin.setX(-1.0f);
+		m_settings->m_accelCalMin.setY(-1.0f);
+		m_settings->m_accelCalMin.setZ(-1.0f);
+	}
 }
 
-void RTIMUAccCal::accCalSaveMinMax()
+void RTIMUAccCal::accelCalEnable(int axis, bool enable)
 {
+    m_accelCalEnable[axis] = enable;
+}
+
+void RTIMUAccCal::newMinMaxData(const RTVector3& data)
+{
+    for (int i = 0; i < 3; i++) {
+        if (m_accelCalEnable[i]) {
+            m_averageValue.setData(i, (data.data(i) * ACCEL_ALPHA + m_averageValue.data(i) * (1.0 - ACCEL_ALPHA)));
+            if (m_accelMin.data(i) >  m_averageValue.data(i)) {
+                m_accelMin.setData(i,  m_averageValue.data(i));
+            }
+
+            if (m_accelMax.data(i) <  m_averageValue.data(i)) {
+                m_accelMax.setData(i,  m_averageValue.data(i));
+            }
+        }
+    }
+}
+
+bool RTIMUAccCal::accelCalValid()
+
+{
+    bool valid = true;
+
+    for (int i = 0; i < 3; i++) {
+        if (m_accelMax.data(i) < m_accelMin.data(i))
+            valid = false;
+    }
+
+    return valid;
+}
+
+bool RTIMUAccCal::accelCalSaveMinMax()
+{
+    if (!accelCalValid())
+        return false;
+
     m_settings->m_accelCalValid = true;
+    m_settings->m_accelCalMin = m_accelMin;
+    m_settings->m_accelCalMax = m_accelMax;
     m_settings->m_accelCalEllipsoidValid = false;
     m_settings->saveSettings();
+    
+    return true;
+}
+
+void RTIMUAccCal::accCalXReset()
+{
+	m_settings->m_accelCalMax.setX(1.0f);
+	m_settings->m_accelCalMin.setX(-1.0f);
+}
+
+void RTIMUAccCal::accCalYReset()
+{
+	m_settings->m_accelCalMax.setY(1.0f);
+	m_settings->m_accelCalMin.setY(-1.0f);
+}
+
+void RTIMUAccCal::accCalZReset()
+{
+	m_settings->m_accelCalMax.setZ(1.0f);
+	m_settings->m_accelCalMin.setZ(-1.0f);
 }

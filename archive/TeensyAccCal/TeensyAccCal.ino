@@ -81,9 +81,18 @@ void loop()
 		    Serial.println("Enter s to save current data.");
 		    Serial.println("Enter A to activate acceleration calibration.");
 		    Serial.println("Enter a to stop acceleration calibration.");
-        Serial.println("-------");
-		    Serial.printf("%s", RTMath::displayRadians("Accel:", imuData.accel));     // accel data
+        Serial.println("Enter X to clear X acceleration calibration.");
+        Serial.println("Enter Y to clear Y acceleration calibration.");
+        Serial.println("Enter Z to clear Z acceleration calibration.");
+        Serial.println("-Data----");
+        Serial.print(RTMath::displayRadians("Gyro [r/s]", imuData.gyro));      // gyro data
+        Serial.print(RTMath::displayRadians("Accel  [g]", imuData.accel));     // accel data
+        Serial.print(RTMath::displayRadians("Mag   [uT]", imuData.compass));   // compass data
         Serial.println("--Calib--");
+        if (settings->m_accelCalValid)
+            Serial.println("Accel cal valid");
+        else
+            Serial.println("No accel cal");
         if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
         Serial.print(RTMath::displayRadians("Acc Max", settings->m_accelCalMax ));       // 
         Serial.print(RTMath::displayRadians("Acc Min", settings->m_accelCalMin ));       // 
@@ -103,13 +112,9 @@ void loop()
         } else {
                 Serial.print(", EEPROM mag cal valid");
         }
-        if (settings->m_accelCalValid)
-            Serial.println(", accel cal valid");
-        else
-            Serial.println(", no accel cal");
         if (CALIBRATE)  imu->runtimeAdjustAccelCal(); 
   
-      	Serial.printf("%s", CALIBRATE ? "Calibrating\n" : "Not Calibrating\n");  
+      	Serial.printf("%s", CALIBRATE ? ", Calibrating\n" : ", Not Calibrating\n");  
 	}
   
     if (Serial.available()) {
@@ -119,6 +124,15 @@ void loop()
         }
         if (inByte == 'A') {                  // runtime calibration on
             CALIBRATE=true;
+        }
+        if (inByte == 'X') {                  // X calibration reset
+            accCal->accCalXReset();
+        }
+        if (inByte == 'Y') {                  // Y calibration rest
+            accCal->accCalYReset();
+        }
+        if (inByte == 'Z') {                  // Z calibration rest
+            accCal->accCalZReset();
         }
         if (inByte == 's') {                  // save the data
             accCal->accCalSaveMinMax();

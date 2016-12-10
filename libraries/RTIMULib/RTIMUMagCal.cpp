@@ -40,10 +40,17 @@ void RTIMUMagCal::magCalInit()
 
 void RTIMUMagCal::magCalReset()
 {
-    m_magMin = RTVector3(RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN);
-    m_magMax = RTVector3(RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX);
-    m_magMinAutoTune = RTVector3(RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN);
-    m_magMaxAutoTune = RTVector3(RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX);
+    if (m_settings->m_compassCalValid) {
+        m_magMin = m_settings->m_compassCalMin;
+        m_magMax = m_settings->m_compassCalMax;
+        m_magMinAutoTune = m_settings->m_compassCalMin;
+        m_magMaxAutoTune = m_settings->m_compassCalMax;
+    } else {
+		m_magMin = RTVector3(RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN);
+		m_magMax = RTVector3(RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX);
+		m_magMinAutoTune = RTVector3(RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN, RTIMUCALDEFS_DEFAULT_MIN);
+		m_magMaxAutoTune = RTVector3(RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX, RTIMUCALDEFS_DEFAULT_MAX);
+    }
 }
 
 void RTIMUMagCal::newMinMaxData(const RTVector3& data)
@@ -78,3 +85,4 @@ void RTIMUMagCal::magCalSaveMinMax()
     m_settings->m_compassCalEllipsoidValid = false;
     m_settings->saveSettings();
 }
+

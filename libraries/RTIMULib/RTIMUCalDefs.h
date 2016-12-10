@@ -30,9 +30,9 @@
 #define RTIMUCALDEFS_DEFAULT_MIN        1000                // a large min
 #define RTIMUCALDEFS_DEFAULT_MAX        -1000               // a small max
 
-#define	RTIMUCALDEFS_MAX_MAG_SAMPLES	           20000            // max saved mag records
-#define	RTIMUCALDEFS_MAX_ACC_SAMPLES	           20000            // max saved acc records
-#define	RTIMUCALDEFS_MAX_TEMPERATURE_SAMPLES	   20000            // max saved acc records [0:0.01:90]
+#define	RTIMUCALDEFS_MAX_MAG_SAMPLES	           1            // max saved mag records
+#define	RTIMUCALDEFS_MAX_ACC_SAMPLES	           1            // max saved acc records
+#define	RTIMUCALDEFS_MAX_TEMPERATURE_SAMPLES	   1            // max saved acc records [0:0.01:90]
 
 #define RTIMUCALDEFS_OCTANT_MIN_SAMPLES    400              // must have at least this in each octant
 

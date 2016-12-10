@@ -56,6 +56,9 @@ public:
 
     RTIMUSettings *m_settings;
 
+    const RTVector3& getMin()      { return m_magMin; } // get accel data in gs
+    const RTVector3& getMax()      { return m_magMax; } // get accel data in gs
+
 private:
     RTVector3 m_minMaxOffset;                               // the min/max calibration offset
     RTVector3 m_minMaxScale;                                // the min/max scale

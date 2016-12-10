@@ -118,7 +118,7 @@ public:
     void accelToEuler(RTVector3& rollPitchYaw) const;
     void accelToQuaternion(RTQuaternion& qPose) const;
 
-    RTFLOAT toHeading(const RTVector3& mag, const float magDeclination);
+    RTFLOAT toHeading(const RTVector3& mag, const float declination);
 
     inline RTFLOAT x() const { return m_data[0]; }
     inline RTFLOAT y() const { return m_data[1]; }
@@ -167,7 +167,7 @@ public:
     void normalize();
     void toEuler(RTVector3& vec);
     void fromEuler(RTVector3& vec);
-    RTFLOAT toHeading(const RTVector3& mag, const float magDeclination );
+    RTFLOAT toHeading(const RTVector3& mag, const float declination);
     RTQuaternion conjugate() const;
     RTFLOAT length();
     RTFLOAT squareLength();
