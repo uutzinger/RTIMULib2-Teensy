@@ -45,6 +45,11 @@ unsigned long lastInAvail;
 unsigned long lastTimestamp;
 unsigned long motionstart;
 unsigned long lastBlink;
+unsigned long lastPoll;
+unsigned long lastIMUPoll;
+unsigned long lastHumidityPoll;
+unsigned long lastPressurePoll;
+unsigned long timeout;
 
 int dt;       // time in between samples
 int dtmotion; // time during which motion occured
@@ -260,20 +265,44 @@ void setup()
   ledStatus = true;
   lastBlink = micros();
 
+  lastPoll = lastIMUPoll = lastHumidityPoll = lastPressurePoll = micros();
+  timeout= (unsigned long) (10*(imu->IMUGetPollInterval() * 1000));
+
 } // setup
   
 void loop()
 {  
-    unsigned long currentTime = micros();
-    
     RTQuaternion rotatedGravity;
     RTQuaternion fusedConjugate;
     RTQuaternion qTemp;
     float residualsAlpha;
     float biasAlpha;
-    
+
+    //  poll at the rate recommended by the IMU
+    unsigned long currentTime = micros();
+    int pollDelay = ((imu->IMUGetPollInterval() * 1000) - (int)(currentTime - lastPoll));
+    if (pollDelay > 0) { delayMicroseconds(pollDelay); }
+    lastPoll = currentTime;
+
+    // check IMU stalled
+    if ( (currentTime - lastIMUPoll) > timeout ) {
+      // We have IMU stalled and need to reset it
+      Serial.println("!!!!!!!!!!!!!!!!!!!! IMU RESET: wait of data for too long !!!!!!!!!!!!!!!!!!!!\n");
+      imu->IMUInit();
+      lastPoll = micros();
+    }
+
     if (imu->IMURead()) {                       // get the latest data if any avail
         imuData = imu->getIMUData();
+        lastIMUPoll = micros();
+        
+        if ( (imuData.gyro.length() > 35.0) || (imuData.accel.length() > 16.0) || (imuData.compass.length() > 1000.0) ) {
+          // IMU Data Error
+          Serial.println("!!!!!!!!!!!!!!!!!!!! IMU RESET: Data out of range !!!!!!!!!!!!!!!!!!!!\n");
+          imu->IMUInit();
+          lastIMUPoll = micros();
+        }
+
         sampleCount++;
         dt=imuData.timestamp-lastTimestamp;
         lastTimestamp = imuData.timestamp;
@@ -299,7 +328,7 @@ void loop()
    			//  Probably too late to adjust here as value was already inserted into fusion algorithm
    			//  imu->setCompassEnable(false);
     		//}
-
+        
         ////////////////////////////////////////////////////////////////////////////////
         // Calibration
         ////////////////////////////////////////////////////////////////////////////////
@@ -528,6 +557,26 @@ void loop()
     } // imuread
      
     ///////////////////////////////////////////////////////////////
+    // AUX Sensors
+    ///////////////////////////////////////////////////////////////
+
+    //  add the pressure data to the structure
+    if (pressure != NULL) {
+      if ( (currentTime - lastPressurePoll) >= 20000 ) { // 20ms
+        lastPressurePoll = currentTime;
+        pressure->pressureRead(imuData);
+      }
+    }
+    
+    //  add the humidity data to the structure
+    if (humidity != NULL) {
+      if ( (currentTime - lastHumidityPoll) >= 80000 ) { // 12.5Hz = 80ms
+        lastHumidityPoll = currentTime;
+        humidity->humidityRead(imuData);
+      }
+    }
+
+    ///////////////////////////////////////////////////////////////
     // Input Commands
     ///////////////////////////////////////////////////////////////
     if (INAVAIL) {
@@ -633,6 +682,7 @@ void loop()
       } // end if serial input available
     } // end INAVAIL
 
+    ///////////////////////////////////////////////////////////////
     // Blink LED if gyro is calibrated otherwise keep it on
     ///////////////////////////////////////////////////////////////
     // But keep LED on if system is moving
