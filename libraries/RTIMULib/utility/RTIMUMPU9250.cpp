@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -83,6 +83,7 @@
  - Read USER_CTRL 
  - Set USER_CTRL I2C Master Control OFF
  - Set register so that user can access auxiliary I2C bus
+
  *  Reset FIFO
  * -----------
  - Modify MPU9250_INT_ENABLE to disable FIFO interrupt
@@ -100,9 +101,11 @@
  */
 #include "RTIMUMPU9250.h"
 #include "RTIMUSettings.h"
+
 RTIMUMPU9250::RTIMUMPU9250(RTIMUSettings *settings) : RTIMU(settings)
 {
 }
+
 RTIMUMPU9250::~RTIMUMPU9250()
 {
 }
@@ -171,6 +174,7 @@ bool RTIMUMPU9250::setAccelLpf(unsigned char lpf)
         return false;
     }
 }
+
 bool RTIMUMPU9250::setCompassRate(int rate)
 {
     if ((rate < MPU9250_COMPASSRATE_MIN) || (rate > MPU9250_COMPASSRATE_MAX)) {
@@ -258,17 +262,8 @@ bool RTIMUMPU9250::IMUInit()
     m_imuData.accelValid = true;
     m_imuData.compassValid = true;
     m_imuData.motion = true;
-    m_imuData.IMUtemperatureValid = false;
-    m_imuData.IMUtemperature = 0.0;
-    m_imuData.humidityValid = false;
-    m_imuData.humidity = -1.0;
-    m_imuData.humidityTemperatureValid = false;
-    m_imuData.humidityTemperature = 0.0;
-    m_imuData.pressureValid = false;
-    m_imuData.pressure = 0.0;
-    m_imuData.pressureTemperatureValid = false;
-    m_imuData.pressureTemperature = 0.0;
-	
+    m_imuData.temperatureValid = false;
+    m_imuData.temperature = 0.0;
     //  configure IMU
 
     m_slaveAddr = m_settings->m_I2CSlaveAddress;
@@ -315,8 +310,10 @@ bool RTIMUMPU9250::IMUInit()
 
     if (!setSampleRate())
         return false;
-    if (!compassSetup()) 
+
+    if(!compassSetup())
         return false;
+
     if (!setCompassRate())
         return false;
 
@@ -343,9 +340,11 @@ bool RTIMUMPU9250::IMUInit()
 bool RTIMUMPU9250::resetFifo()
 {
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_INT_ENABLE, 0, "Writing int enable"))
-        return false;  // disable FIFO interrupt
+        return false; // disable FIFO interrupt
+
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_FIFO_EN, 0, "Writing fifo enable"))
         return false; // disable FIFO
+
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_USER_CTRL, 0, "Writing user control"))
         return false; // disable FIFO and master modes
                                                             //0x04 resets FIFO only (ORIGINAL CODE)
@@ -357,8 +356,10 @@ bool RTIMUMPU9250::resetFifo()
 	m_settings->delayMs(50);
 														   // 0x60 FIFO EN and I2C Master Mode
 														   // 0x40 FIFO EN 
+
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_USER_CTRL, 0x60, "Enabling the fifo"))
         return false; // set bit 5 (sets I2C to master mode) bit 6 (sets FIFO ENABLE)
+
     // m_settings->delayMs(50);
 
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_INT_ENABLE, 1, "Writing int enable"))
@@ -373,9 +374,11 @@ bool RTIMUMPU9250::resetFifo()
         #if MPU9250_FIFO_WITH_COMPASS == 1 // compass and temp in fifo
 			if (!m_settings->HALWrite(m_slaveAddr, MPU9250_FIFO_EN, 0xf9, "Failed to set FIFO enables"))
             return false;
+
 		#else // with temp in fifo
 			if (!m_settings->HALWrite(m_slaveAddr, MPU9250_FIFO_EN, 0xf8, "Failed to set FIFO enables"))
             return false;
+
 		#endif
 	#else
         #if MPU9250_FIFO_WITH_COMPASS == 1 // compass in fifo
@@ -397,12 +400,10 @@ bool RTIMUMPU9250::setGyroConfig()
 
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_GYRO_CONFIG, gyroConfig, "Failed to write gyro config"))
          return false;
-
     if (!m_settings->HALWrite(m_slaveAddr, MPU9250_GYRO_LPF, gyroLpf, "Failed to write gyro lpf"))
          return false;
     return true;
 }
-
 
 bool RTIMUMPU9250::setAccelConfig()
 {
@@ -745,8 +746,8 @@ bool RTIMUMPU9250::IMURead()
     #if MPU9250_FIFO_WITH_TEMP == 1
         // Temperature
        
-        m_imuData.IMUtemperature =  ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f;  // combined registers and convert to temperature
-        m_imuData.IMUtemperatureValid = true;
+        m_imuData.temperature =  ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f;  // combined registers and convert to temperature
+        m_imuData.temperatureValid = true;
         // Gyroscope
         RTMath::convertToVector(fifoData + 8, m_imuData.gyro, m_gyroScale, true);
          // Compass
@@ -757,8 +758,8 @@ bool RTIMUMPU9250::IMURead()
 		#endif
     #else // no temp in fifo
 	    // Temperature
-        m_imuData.IMUtemperature = ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f; // combined registers and convert to temperature
-        m_imuData.IMUtemperatureValid = true;
+        m_imuData.temperature = ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f; // combined registers and convert to temperature
+        m_imuData.temperatureValid = true;
 		// ((TEMP_OUT – RoomTemp_Offset)/Temp_Sensitivity) + 21degC
 		// 333.87 = sensitivity
 		// 0 = room temp offset at 21
@@ -793,7 +794,7 @@ bool RTIMUMPU9250::IMURead()
         Serial.printf("%x, ", temperatureData[1] );
 	#endif
 	Serial.print("\n");
-	Serial.printf("T valid %x \n", m_imuData.IMUtemperatureValid);
+	Serial.printf("T valid %x \n", m_imuData.temperatureValid);
 	Serial.printf("T %i \n", (int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7]));
 	float TEMP_OUT = (float)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7]));
 	Serial.printf("T %f \n", (TEMP_OUT/333.87f)+21.0f);
@@ -829,12 +830,12 @@ bool RTIMUMPU9250::IMURead()
     m_firstTime = false;
 	
     //  now do standard processing
-    if (m_imuData.IMUtemperatureValid == true) {
+    if (m_imuData.temperatureValid == true) {
         // Check if temperature changed
-        if (fabs(m_imuData.IMUtemperature - m_IMUtemperature_previous) >= TEMPERATURE_DELTA) {
+        if (fabs(m_imuData.temperature - m_temperature_previous) >= TEMPERATURE_DELTA) {
             // If yes, update bias
-            updateTempBias(m_imuData.IMUtemperature);
-            m_IMUtemperature_previous = m_imuData.IMUtemperature;
+            updateTempBias(m_imuData.temperature);
+            m_temperature_previous = m_imuData.temperature;
         }
         // Then do
         handleTempBias(); 	// temperature Correction

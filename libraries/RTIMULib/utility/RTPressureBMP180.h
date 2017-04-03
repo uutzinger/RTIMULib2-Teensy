@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -49,20 +49,16 @@ public:
     ~RTPressureBMP180();
 
     virtual const char *pressureName() { return "BMP180"; }
-    virtual int pressureType() { return RTPRESSURE_TYPE_BMP180; }
+    virtual int  pressureType() { return RTPRESSURE_TYPE_BMP180; }
     virtual bool pressureInit();
-    virtual bool pressureRead(RTIMU_DATA& data);
+    virtual bool pressureRead();
+    virtual int  pressureGetPollInterval();
 
 private:
-    void pressureBackground();
     void setTestData();
-
     unsigned char m_pressureAddr;                           // I2C address
-    RTFLOAT m_pressure;                                     // the current pressure
-    RTFLOAT m_pressureTemperature;                                  // the current temperature
 
     // This is the calibration data read from the sensor
-
     int32_t m_AC1;
     int32_t m_AC2;
     int32_t m_AC3;
@@ -81,7 +77,8 @@ private:
     uint16_t m_rawPressure;
     uint16_t m_rawTemperature;
 
-    bool m_validReadings;
+    uint64_t m_timer;                                       // used to time coversions
+
 };
 
 #endif // _RTPRESSUREBMP180_H_

@@ -26,10 +26,12 @@
 #include "utility/RTHumidity.h"
 
 RTIMU *imu;                                           // the IMU object
-RTPressure *pressure;                                 // the pressure object
-RTHumidity *humidity;                                 // the humidity object
+RTPressure    *pressure;                              // the pressure object
+RTHumidity    *humidity;                              // the humidity object
 RTIMUSettings *settings;                              // the settings object
-RTIMU_DATA imuData;                                   // IMU Data Structure
+RTIMU_DATA     imuData;                               // IMU Data Structure
+PRESSURE_DATA  pressureData;                          // Pressure Data Structure
+HUMIDITY_DATA  humidityData;                          // Humidity Data Structure
 
 //  DISPLAY_INTERVAL sets the rate at which results are transferred to host
 #define DISPLAY_INTERVAL      100                   // interval in microseconds between data updates over serial port: 100000=10Hz, Fusion update is 80Hz, lowpass is 40Hz
@@ -38,6 +40,10 @@ RTIMU_DATA imuData;                                   // IMU Data Structure
 
 //  SERIAL_PORT_SPEED defines the speed to use for the debug serial port
 #define  SERIAL_PORT_SPEED  250000
+
+unsigned long IMUpollInterval = 1;
+unsigned long pressurePollInterval = 1;
+unsigned long humidityPollInterval = 1;
 
 unsigned long lastDisplay;
 unsigned long lastRate;
@@ -50,11 +56,17 @@ unsigned long lastIMUPoll;
 unsigned long lastHumidityPoll;
 unsigned long lastPressurePoll;
 unsigned long timeout;
+unsigned long currentTime;
 
 int dt;       // time in between samples
 int dtmotion; // time during which motion occured
-int sampleCount;
-int sampleRate;
+
+int IMUsampleCount;
+int IMUsampleRate;
+int pressureSampleCount;
+int pressureSampleRate;
+int humiditySampleCount;
+int humiditySampleRate;
 
 // Controlling Reporting and Input Output
 bool REPORT=false;                                    // do we need to produce output data?
@@ -65,12 +77,21 @@ bool CUBE=false;                                      // set output format for 4
 bool ACCELCALIBRATE = false;                          // enable runtime accel calibration
 bool SERIAL_REPORTING = false; 	          					  // minimal output when boot
 bool COMPASS_ENABLE = false;   					              // boot conditions for compass
-bool GYRO_CALIBRATED = false;                         // keep track if gyro is calibrated when system is still
 bool PRESSURE_ENABLE = false;                         // disable pressure detection
 bool HUMIDITY_ENABLE = false;                         // disable humidity detection
+bool DEBUG_ENABLE = false;                            // No debug fusion parameters
+
+// CALIBRATION STATUS
+bool GYRO_CALIBRATED = false;                         // This will change to true if IMU had been still and gyro amplitude was below 0.003 once. 
+                                                      // if GYRO_CALIBRATED is false that means the GYRO bias is not properly calibrated 
+// FUSION CONTROL
 float slerpPower = 0.02;                              // Fusion convergence
-const int ledPin = 2;                                 // Check on https://www.pjrc.com/teensy/pinout.html; pin should not interfere with I2C and SPI
-bool ledStatus = false;                               // status of external LED indicator
+
+// Indicators
+const int ledPin = 13;                                // Check on https://www.pjrc.com/teensy/pinout.html; pin should not interfere with I2C and SPI
+bool ledStatus = false;                               // Led should be off at start up
+
+// Serial
 int  inByte = 0;                                      // serial input buffer, one byte
 
 // Fusion Status bits
@@ -104,11 +125,15 @@ byte systemStatusAUX = B00000000;
 #define STATE_HUMIDITYVALID      2
 #define STATE_HUMIDITYTEMPVALID  3
 
-// Position Sensing
+// Position Sensing, Physical Variables
 const float accScale = 9.81f;                         // conversion to 9.81 m/s/s
 const float magFieldNorm=47.12f;                      // conversion to microT
 float magFieldNormScale =1.0f;                        // to adjust current magnetometer readings
 float compassHeading;                                 // tilt compensated heading
+float staticPressure = 1013.25f;
+float pressure_avg = 1013.25f;
+float humidity_avg = 0.0f;
+// Motion variables
 float lastCompassHeading;
 float compassHeadingDelta;
 float lastYaw;
@@ -118,25 +143,25 @@ float previousGyroLength;
 float previousCompassLength;
 
 RunningAverage compassHeading_avg(5);                 // Running average for heading (noise reduction)
-RTVector3 comp;                                       // to compute earh field strength
+RunningAverage residuals_avg(25);                     // Running average for residuals (debug)
+RunningAverage gyro_avg(25);                          // Running average for gyro (debug)
+RunningAverage compass_avg(25);                       // Running average for compass (debug)
+RunningAverage accel_avg(25);                         // Running average for acceleration (debug)
+RTQuaternion gravity;
+RTVector3 tempVec;
+RTVector3 comp;                                       // average earth field strength measured at startup
 RTVector3 residuals;                                  // gravity subtracted acceleration
 RTVector3 residualsBias;                              // average acceleration when device is stationary
 RTVector3 residualsBiasTemp;                          // for computing average acceleration
 RTVector3 residualsBiasCandidate;                     // for computing average acceleration
 int intervalCount = 0;                                // interval loop o updating residual bias
 bool firstTime = true;                                // first interval in residual calculations
-RunningAverage residuals_avg(25);                     // Running average for residuals (debug)
-RunningAverage gyro_avg(25);                          // Running average for gyro (debug)
-RunningAverage compass_avg(25);                       // Running average for compass (debug)
-RunningAverage accel_avg(25);                         // Running average for acceleration (debug)
 RTVector3 worldResiduals;                             // residuals in the world coordinate system
 RTVector3 worldResidualsPrevious;                     // for trapezoidal integration of acceleration
 RTVector3 worldVelocity;                              // integrated acceleration
 RTVector3 worldVelocityBias;                          // velocity bias computed at end of motion
 RTVector3 worldVelocityPrevious;                      // for trapezoidal integration of velocity
 RTVector3 worldLocation;                              // integrated velocity
-RTQuaternion gravity;
-RTVector3 tempVec;
 
 bool lastMotion=false, motionStarted=false, motionEnded=false;
 
@@ -171,7 +196,9 @@ void setup()
 			if (SERIAL_REPORTING) {Serial.println(", pressure sensor "); Serial.print(pressure->pressureName());}
 			if ((errcode = pressure->pressureInit()) < 0) {
 				if (SERIAL_REPORTING) {Serial.print("Failed to init pressure sensor: "); Serial.println(errcode);}
-			}
+			} else {
+			    pressurePollInterval = pressure->pressureGetPollInterval() * 1000;
+            }
 		}
 	} // pressure
 
@@ -183,6 +210,8 @@ void setup()
 		  if (SERIAL_REPORTING) { Serial.println(", humidity sensor "); Serial.println(humidity->humidityName()); }
 		  if ((errcode = humidity->humidityInit()) < 0) {
 			  if (SERIAL_REPORTING) { Serial.print("Failed to init humidity sensor: "); Serial.println(errcode);} 
+		  } else {
+              humidityPollInterval = humidity->humidityGetPollInterval() * 1000;
 		  }
 		}
 	} // humidity
@@ -212,8 +241,12 @@ void setup()
   imu->setSlerpPower(slerpPower);
   imu->setGyroEnable(true);
   imu->setAccelEnable(true);
-  imu->setCompassEnable(COMPASS_ENABLE);
-    
+  // imu->setCompassEnable(COMPASS_ENABLE);
+  imu->setCompassEnable(false);
+  imu->setDebugEnable(DEBUG_ENABLE);
+  
+  IMUpollInterval = imu->IMUGetPollInterval() * 1000;
+		
   //--Fusion
   bitWrite(fusionStatus, STATE_FUSION_GYROENABLE,    imu->getGyroEnable() );
   bitWrite(fusionStatus, STATE_FUSION_ACCELENABLE,   imu->getAccelEnable() );
@@ -222,7 +255,9 @@ void setup()
     
   // House keeping & Initializing
   lastDisplay = lastRate = lastTimestamp = lastInAvail = micros();
-  sampleCount = 0;
+  IMUsampleCount = 0;
+  pressureSampleCount = 0;
+  humiditySampleCount = 0;
   residuals.zero();
   worldResiduals.zero();
   worldResidualsPrevious.zero();
@@ -239,17 +274,31 @@ void setup()
   gravity.setZ(1);
 
   // dry run of the system
+  if (SERIAL_REPORTING) { Serial.println("Dry run of system."); }
   int i=0;
   while (i < 80) {
+    currentTime = micros();
+    int pollDelay = ((int) IMUpollInterval - (int)(currentTime - lastPoll));
+    if (pollDelay > 0) { delayMicroseconds(pollDelay); }
+    lastPoll = currentTime;
     if  (imu->IMURead()) { i++; }
+    if (humidity != NULL) { humidity->humidityRead(); }
+    if (pressure != NULL) { pressure->pressureRead(); }
   }
-
+  
+  pressureData = pressure->getPressureData();
+  if (pressureData.pressureValid) {staticPressure = pressureData.pressure;}
+	
   imu->setGyroRunTimeCalibrationEnable(true);     // enable background gyro calibration
 
   // Compute normalization factor for earts magnetic field
   comp.zero();
   i=0;
   while (i < 50) {
+    currentTime = micros();
+    int pollDelay = (IMUpollInterval - (int)(currentTime - lastPoll));
+    if (pollDelay > 0) { delayMicroseconds(pollDelay); }
+    lastPoll = currentTime;
     if  (imu->IMURead()) {                       // get the latest calibrated data 
       imuData = imu->getIMUData();
       comp = comp + imuData.compass;             // get compass
@@ -259,17 +308,24 @@ void setup()
   comp = comp / 50.0f; // compute average compass (devide by 50)
   magFieldNormScale=magFieldNorm/comp.length();
   
+  // Ready for input commands
   if (SERIAL_REPORTING) { Serial.println("Send S to start streaming."); }
 
+  // LED blinking status
   digitalWrite(ledPin, HIGH); // initialization completed
   ledStatus = true;
   lastBlink = micros();
 
+  // setup timers
   lastPoll = lastIMUPoll = lastHumidityPoll = lastPressurePoll = micros();
-  timeout= (unsigned long) (10*(imu->IMUGetPollInterval() * 1000));
+  timeout= (unsigned long) (50*(imu->IMUGetPollInterval() * 1000));
+
+  if (SERIAL_REPORTING) { Serial.println("System ready."); }
 
 } // setup
-  
+
+/////////////////////////////////////////////////////////////
+
 void loop()
 {  
     RTQuaternion rotatedGravity;
@@ -279,7 +335,7 @@ void loop()
     float biasAlpha;
 
     //  poll at the rate recommended by the IMU
-    unsigned long currentTime = micros();
+    currentTime = micros();
     int pollDelay = ((imu->IMUGetPollInterval() * 1000) - (int)(currentTime - lastPoll));
     if (pollDelay > 0) { delayMicroseconds(pollDelay); }
     lastPoll = currentTime;
@@ -287,9 +343,10 @@ void loop()
     // check IMU stalled
     if ( (currentTime - lastIMUPoll) > timeout ) {
       // We have IMU stalled and need to reset it
-      Serial.println("!!!!!!!!!!!!!!!!!!!! IMU RESET: wait of data for too long !!!!!!!!!!!!!!!!!!!!\n");
+      Serial.println("!!!!!!!!!!!!!!!!!!!! IMU RESET: wait for data for too long !!!!!!!!!!!!!!!!!!!!");
+      // Serial.printf("current time %i, lastIMUPoll %i, delta %i, timeout %i\n", currentTime, lastIMUPoll, (currentTime - lastIMUPoll), timeout);
       imu->IMUInit();
-      lastPoll = micros();
+      lastIMUPoll = lastPoll = currentTime = micros();
     }
 
     if (imu->IMURead()) {                       // get the latest data if any avail
@@ -298,14 +355,18 @@ void loop()
         
         if ( (imuData.gyro.length() > 35.0) || (imuData.accel.length() > 16.0) || (imuData.compass.length() > 1000.0) ) {
           // IMU Data Error
-          Serial.println("!!!!!!!!!!!!!!!!!!!! IMU RESET: Data out of range !!!!!!!!!!!!!!!!!!!!\n");
+          Serial.println("!!!!!!!!!!!!!!!!!!!! IMU RESET: Data out of range !!!!!!!!!!!!!!!!!!!!");
           imu->IMUInit();
           lastIMUPoll = micros();
         }
 
-        sampleCount++;
+        IMUsampleCount++;
         dt=imuData.timestamp-lastTimestamp;
         lastTimestamp = imuData.timestamp;
+
+        gyro_avg.addValue(imuData.gyro.length());
+        accel_avg.addValue(imuData.accel.length());
+        compass_avg.addValue(imuData.compass.length());
 
         bitWrite(fusionStatus, STATE_FUSION_MOVING, imuData.motion); // update moving reporting
 
@@ -419,27 +480,6 @@ void loop()
         worldResidualsPrevious = worldResiduals;
         worldVelocityPrevious  = worldVelocity;
 
-        // Do we want to update sampling rate?
-        if ((currentTime - lastRate) >= 1000000) { // 1 second
-            sampleRate=sampleCount;
-            sampleCount = 0;
-            lastRate = currentTime;
-        }
-    
-        // Do we want to display data?
-        if ((currentTime-lastDisplay) >= DISPLAY_INTERVAL) {
-          lastDisplay = currentTime;
-          if (STREAM) { REPORT = true; } else { REPORT = false; }
-        }
-    
-        // Do we want to check input ?
-        if ((currentTime-lastInAvail) >= CHECKINPUT_INTERVAL) {
-          lastInAvail = currentTime;
-          INAVAIL = true;
-        } else {
-          INAVAIL = false;
-        }
-
         // Check if gyro bias has adapted
         // The noise on the 9150 gyroscope is about 0.002
         if ((imuData.motion == false) && (imuData.gyro.length() <= 0.003)) {
@@ -447,113 +487,7 @@ void loop()
         } else {
           GYRO_CALIBRATED = false;
         }
-        
-        ///////////////////////////////////////////////////////////////
-        // Data Reporting
-        ///////////////////////////////////////////////////////////////
-        if (REPORT) {
-          if (VERBOSE) {
-            Serial.println("-Data----");
-            Serial.print(RTMath::displayRadians("Gyro [r/s]", imuData.gyro));      // gyro data
-            Serial.print(RTMath::displayRadians("Accel  [g]", imuData.accel));     // accel data
-            imuData.compass=imuData.compass*magFieldNormScale;                     // compass in uT
-            Serial.print(RTMath::displayRadians("Mag   [uT]", imuData.compass));   // compass data
-            Serial.print(RTMath::displayDegrees("Pose", imuData.fusionPose));      // fused output
-            Serial.print(RTMath::display("Quat", imuData.fusionQPose));            // fused quaternion output
-            //Serial.printf("Heading from Quat: %+4.3f\n", imuData.fusionQPose.toHeading(imuData.compass, settings->m_compassAdjDeclination)*RTMATH_RAD_TO_DEGREE);
-            Serial.printf("Compass based Heading: %+4.3f\n", compassHeading_avg.getAverage()*RTMATH_RAD_TO_DEGREE);
-            gyro_avg.addValue(imuData.gyro.length());
-            accel_avg.addValue(imuData.accel.length());
-            compass_avg.addValue(imuData.compass.length());
-            Serial.printf("Average Gyro: %+4.3f, %+4.3f, ", gyro_avg.getAverage(),imuData.gyro.length()-previousGyroLength);
-            previousGyroLength=imuData.gyro.length();
-            Serial.printf("Accel: %+4.3f, %+4.3f, ", accel_avg.getAverage(),imuData.accel.length()-previousAccelLength);
-            previousAccelLength=imuData.accel.length();
-            Serial.printf("Compass: %+4.3f, %+4.3f\n", compass_avg.getAverage(), imuData.compass.length()-previousCompassLength);
-            previousCompassLength=imuData.compass.length();
-            if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
-            Serial.println("--Calib--");
-            Serial.print(RTMath::displayRadians("Acc Max", settings->m_accelCalMax ));       // 
-            Serial.print(RTMath::displayRadians("Acc Min", settings->m_accelCalMin ));       // 
-            Serial.print(RTMath::displayRadians("Mag Max", settings->m_compassCalMax ));     // 
-            Serial.print(RTMath::displayRadians("Mag Min", settings->m_compassCalMin ));     // 
-            tempVec = imu->getCompassRunTimeMagCalMax();
-            Serial.print(RTMath::displayRadians("Runtime Mag Max", tempVec ));     // 
-            tempVec = imu->getCompassRunTimeMagCalMin();
-            Serial.print(RTMath::displayRadians("Runtime Mag Min", tempVec ));     // 
-            Serial.print(RTMath::displayRadians("Gyro Bias", settings->m_gyroBias ));        // 
-            Serial.printf("Declination: %+4.3f \n", (settings->m_compassAdjDeclination/3.141f*180.0f));
-            Serial.print("Runtime Calibrating: ");
-            Serial.printf("%s", ACCELCALIBRATE ? "Accelerometer, " : "");  
-            Serial.printf("%s", imu->getCompassRunTimeCalibrationEnable() ? "Compass, " : "");
-            Serial.printf("%s", imu->getGyroManualCalibrationEnable() ? "Gyroscope Manual, " : "");
-            Serial.printf("%s", imu->getGyroRunTimeCalibrationEnable() ? "Gyroscope" : "");  
-            Serial.println(".");
-            Serial.println("--Aux----");
-            Serial.printf("IMU_T %+4.2f, ", imuData.IMUtemperature);
-            Serial.printf("P %+4.2f, ",     imuData.pressure);
-            Serial.printf("P_T %+4.2f, ",   imuData.pressureTemperature);
-            Serial.printf("H %+4.2f, ",     imuData.humidity);
-            Serial.printf("H_T %+4.2f ",    imuData.humidityTemperature);
-            Serial.println();
-            Serial.println("-Status--");
-            IMUStatusUpdate();
-            Serial.printf("IMUP:  %i ", bitRead(systemStatusIMU, STATE_FUSIONPOSEVALID));
-            Serial.printf("IMUQP: %i ", bitRead(systemStatusIMU, STATE_FUSIONQPOSEVALID));
-            Serial.printf("IMUG:  %i ", bitRead(systemStatusIMU, STATE_GYROVALID));
-            Serial.printf("IMUA:  %i ", bitRead(systemStatusIMU, STATE_ACCELVALID));
-            Serial.printf("IMUC:  %i ", bitRead(systemStatusIMU, STATE_COMPASSVALID));
-            Serial.printf("IMUT:  %i ", bitRead(systemStatusIMU, STATE_IMUTEMPVALID));
-            Serial.println();
-            Serial.printf("AUXP:  %i ", bitRead(systemStatusAUX, STATE_PRESSUREVALID));
-            Serial.printf("AUXPT: %i ", bitRead(systemStatusAUX, STATE_PRESSURETEMPVALID));
-            Serial.printf("AUXH:  %i ", bitRead(systemStatusAUX, STATE_HUMIDITYVALID));
-            Serial.printf("AUXHT: %i ", bitRead(systemStatusAUX, STATE_HUMIDITYTEMPVALID));
-            Serial.println();
-            Serial.println("-Fusion--Run Time-");
-            Serial.print("Fusion using: ");
-            Serial.printf("%s", bitRead(fusionStatus, STATE_FUSION_GYROENABLE) ? "Gyroscope " : "");  
-            Serial.printf("%s", bitRead(fusionStatus, STATE_FUSION_ACCELENABLE) ? "Accelerometer " : "");
-            Serial.printf("%s", bitRead(fusionStatus, STATE_FUSION_COMPASSENABLE) ? "Compass" : "");  
-            Serial.println();
-            Serial.println("-Motion--");
-            Serial.print(RTMath::displayRadians("Residuals          [m/s2]", residuals));           // Residuals in device coordiante system
-            Serial.print(RTMath::displayRadians("Residuals Bias     [m/s2]", residualsBias));       // Residuals bias in device coordiante system
-            Serial.print(RTMath::displayRadians("World Residuals    [m/s2]", worldResiduals));      // Residuals in device world coordiante system
-            Serial.print(RTMath::displayRadians("World Velocity      [m/s]", worldVelocity));       // Velocity in world coordiante system
-            Serial.print(RTMath::displayRadians("World Velocity Bias [m/s]", worldVelocityBias));   // Velocity bias in world coordiante system
-            Serial.print(RTMath::displayRadians("World Position        [m]", worldLocation));       // Location in world coordiante system
-            residuals_avg.addValue(residuals.length());
-            Serial.printf("Average Residuals Length: %+4.3f \n", residuals_avg.getAverage());
-            Serial.println("-System--");
-            Serial.print("Sample rate: "); Serial.print(sampleRate);
-            if (imu->IMUGyroBiasValid())
-                Serial.print(", Gyro bias valid");
-            else
-                Serial.print(", Calculating gyro bias");
-            if (!imu->getCompassCalibrationValid()) {
-                if (imu->getRuntimeCompassCalibrationValid())
-                    Serial.print(", Runtime mag cal valid");
-                else     
-                    Serial.print(", Runtime mag cal not valid");
-            } else {
-                    Serial.print(", EEPROM mag cal valid");
-            }
-            if (imu->getAccelCalibrationValid())
-                Serial.println(", EEPROM Accel cal valid");
-            else
-                Serial.println(", No accel cal");
-            Serial.print("Data Transmission Time [us]: ");
-            Serial.println((micros()-currentTime)); // takes about 4ms to send the data
-            Serial.println("-End-----");
-          } else {
-            if (CUBE) {
-              CubeUpdate();
-            } else {
-              BitBucketsUpdate();
-            }  
-          } // ASCII
-        } // report        
+       
     } // imuread
      
     ///////////////////////////////////////////////////////////////
@@ -562,23 +496,168 @@ void loop()
 
     //  add the pressure data to the structure
     if (pressure != NULL) {
-      if ( (currentTime - lastPressurePoll) >= 20000 ) { // 20ms
+	    currentTime = micros();
+      if ( (currentTime - lastPressurePoll) >= pressurePollInterval ) {
         lastPressurePoll = currentTime;
-        pressure->pressureRead(imuData);
+        if (pressure->pressureRead()){
+			    pressureData=pressure->getPressureData();
+			    if (pressureData.pressureValid) {
+			      pressure_avg = pressure->updateAveragePressure(pressureData.pressure); // smooth it out
+			    }
+			    pressureSampleCount++;		    
+		    }
       }
     }
     
     //  add the humidity data to the structure
     if (humidity != NULL) {
-      if ( (currentTime - lastHumidityPoll) >= 80000 ) { // 12.5Hz = 80ms
+      if ( (int)(currentTime - lastHumidityPoll) >= (int)humidityPollInterval ) { // 12.5Hz = 80ms
         lastHumidityPoll = currentTime;
-        humidity->humidityRead(imuData);
+		    if (humidity->humidityRead()) {
+          humidityData = humidity->getHumidityData();
+          if (humidityData.humidityValid) {
+             humidity_avg = humidity->updateAverageHumidity(humidityData.humidity); // smooth it out
+          }
+	        humiditySampleCount++;
+       }
       }
     }
 
+	if ((currentTime - lastRate) >= 1000000) { // 1 second
+		lastRate = currentTime;
+		IMUsampleRate = IMUsampleCount;
+		IMUsampleCount = 0;
+		pressureSampleRate = pressureSampleCount;
+		pressureSampleCount = 0;
+		humiditySampleRate = humiditySampleCount;
+		humiditySampleCount = 0;
+	}
+    
+	// Do we want to display data?
+	if ((currentTime-lastDisplay) >= DISPLAY_INTERVAL) {
+	  lastDisplay = currentTime;
+	  if (STREAM) { REPORT = true; } else { REPORT = false; }
+	}
+
+	// Do we want to check input ?
+	if ((currentTime-lastInAvail) >= CHECKINPUT_INTERVAL) {
+	  lastInAvail = currentTime;
+	  INAVAIL = true;
+	} else {
+	  INAVAIL = false;
+	}
+
+	///////////////////////////////////////////////////////////////
+	// Data Reporting
+	///////////////////////////////////////////////////////////////
+	
+	if (REPORT) {
+	  if (VERBOSE) {
+		Serial.println("-Data----");
+		Serial.print(RTMath::displayRadians("Gyro [r/s]", imuData.gyro));      // gyro data
+		Serial.print(RTMath::displayRadians("Accel  [g]", imuData.accel));     // accel data
+		imuData.compass=imuData.compass*magFieldNormScale;                     // compass in uT
+		Serial.print(RTMath::displayRadians("Mag   [uT]", imuData.compass));   // compass data
+		Serial.print(RTMath::displayDegrees("Pose", imuData.fusionPose));      // fused output
+		Serial.print(RTMath::display("Quat", imuData.fusionQPose));            // fused quaternion output
+		//Serial.printf("Heading from Quat: %+4.3f\n", imuData.fusionQPose.toHeading(imuData.compass, settings->m_compassAdjDeclination)*RTMATH_RAD_TO_DEGREE);
+		Serial.printf("Compass based Heading: %+4.3f\n", compassHeading_avg.getAverage()*RTMATH_RAD_TO_DEGREE);
+		Serial.printf("Average Gyro: %+4.3f, %+4.3f, ", gyro_avg.getAverage(),imuData.gyro.length()-previousGyroLength);
+		previousGyroLength=imuData.gyro.length();
+		Serial.printf("Accel: %+4.3f, %+4.3f, ", accel_avg.getAverage(),imuData.accel.length()-previousAccelLength);
+		previousAccelLength=imuData.accel.length();
+		Serial.printf("Compass: %+4.3f, %+4.3f\n", compass_avg.getAverage(), imuData.compass.length()-previousCompassLength);
+		previousCompassLength=imuData.compass.length();
+		if (imuData.motion) { Serial.println("Sensor is moving."); } else { Serial.println("Sensor is still."); } // motion
+		Serial.println("--Calib--");
+		Serial.print(RTMath::displayRadians("Acc Max", settings->m_accelCalMax ));       // 
+		Serial.print(RTMath::displayRadians("Acc Min", settings->m_accelCalMin ));       // 
+		Serial.print(RTMath::displayRadians("Mag Max", settings->m_compassCalMax ));     // 
+		Serial.print(RTMath::displayRadians("Mag Min", settings->m_compassCalMin ));     // 
+		tempVec = imu->getCompassRunTimeMagCalMax();
+		Serial.print(RTMath::displayRadians("Runtime Mag Max", tempVec ));     // 
+		tempVec = imu->getCompassRunTimeMagCalMin();
+		Serial.print(RTMath::displayRadians("Runtime Mag Min", tempVec ));     // 
+		Serial.print(RTMath::displayRadians("Gyro Bias", settings->m_gyroBias ));        // 
+		Serial.printf("Declination: %+4.3f \n", (settings->m_compassAdjDeclination/3.141f*180.0f));
+		Serial.print("Runtime Calibrating: ");
+		Serial.printf("%s", ACCELCALIBRATE ? "Accelerometer, " : "");  
+		Serial.printf("%s", imu->getCompassRunTimeCalibrationEnable() ? "Compass, " : "");
+		Serial.printf("%s", imu->getGyroManualCalibrationEnable() ? "Gyroscope Manual, " : "");
+		Serial.printf("%s", imu->getGyroRunTimeCalibrationEnable() ? "Gyroscope" : "");  
+		Serial.println(".");
+		Serial.println("--Aux----");
+		Serial.printf("Tempearture IMU %+4.2f, ", imuData.temperature);
+		if (pressure != NULL) {	Serial.printf("Pressure %+4.2f, ",   pressureData.temperature);}
+	  if (humidity != NULL) { Serial.printf("Humidity %+4.2f\n",   humidityData.temperature);}
+		if (pressure != NULL) { Serial.printf("Pressure: %+4.2f, ",  pressureData.pressure);}
+    if (humidity != NULL) { Serial.printf("Humidity: %+4.2f\n ", humidityData.humidity); }
+		Serial.println("-Status--");
+		IMUStatusUpdate();
+		Serial.printf("IMUP:  %i ", bitRead(systemStatusIMU, STATE_FUSIONPOSEVALID));
+		Serial.printf("IMUQP: %i ", bitRead(systemStatusIMU, STATE_FUSIONQPOSEVALID));
+		Serial.printf("IMUG:  %i ", bitRead(systemStatusIMU, STATE_GYROVALID));
+		Serial.printf("IMUA:  %i ", bitRead(systemStatusIMU, STATE_ACCELVALID));
+		Serial.printf("IMUC:  %i ", bitRead(systemStatusIMU, STATE_COMPASSVALID));
+		Serial.printf("IMUT:  %i ", bitRead(systemStatusIMU, STATE_IMUTEMPVALID));
+		Serial.println();
+		Serial.printf("AUXP:  %i ", bitRead(systemStatusAUX, STATE_PRESSUREVALID));
+		Serial.printf("AUXPT: %i ", bitRead(systemStatusAUX, STATE_PRESSURETEMPVALID));
+		Serial.printf("AUXH:  %i ", bitRead(systemStatusAUX, STATE_HUMIDITYVALID));
+		Serial.printf("AUXHT: %i ", bitRead(systemStatusAUX, STATE_HUMIDITYTEMPVALID));
+		Serial.println();
+		Serial.println("-Fusion--Run Time-");
+		Serial.print("Fusion using: ");
+		Serial.printf("%s", bitRead(fusionStatus, STATE_FUSION_GYROENABLE) ? "Gyroscope " : "");  
+		Serial.printf("%s", bitRead(fusionStatus, STATE_FUSION_ACCELENABLE) ? "Accelerometer " : "");
+		Serial.printf("%s", bitRead(fusionStatus, STATE_FUSION_COMPASSENABLE) ? "Compass" : "");  
+		Serial.println();
+		Serial.println("-Motion--");
+		Serial.print(RTMath::displayRadians("Residuals          [m/s2]", residuals));           // Residuals in device coordiante system
+		Serial.print(RTMath::displayRadians("Residuals Bias     [m/s2]", residualsBias));       // Residuals bias in device coordiante system
+		Serial.print(RTMath::displayRadians("World Residuals    [m/s2]", worldResiduals));      // Residuals in device world coordiante system
+		Serial.print(RTMath::displayRadians("World Velocity      [m/s]", worldVelocity));       // Velocity in world coordiante system
+		Serial.print(RTMath::displayRadians("World Velocity Bias [m/s]", worldVelocityBias));   // Velocity bias in world coordiante system
+		Serial.print(RTMath::displayRadians("World Position        [m]", worldLocation));       // Location in world coordiante system
+		residuals_avg.addValue(residuals.length());
+		Serial.printf("Average Residuals Length: %+4.3f \n", residuals_avg.getAverage());
+		Serial.println("-System--");
+		Serial.print("Sample rate IMU: "); Serial.print(IMUsampleRate);
+    if (humidity != NULL) {Serial.print(" humidity: "); Serial.print(humiditySampleRate);}
+    if (pressure != NULL) {Serial.print(" pressure: "); Serial.print(pressureSampleRate);}
+		if (imu->IMUGyroBiasValid())
+			Serial.print(", Gyro bias valid");
+		else
+			Serial.print(", Calculating gyro bias");
+		if (!imu->getCompassCalibrationValid()) {
+			if (imu->getRuntimeCompassCalibrationValid())
+				Serial.print(", Runtime mag cal valid");
+			else     
+				Serial.print(", Runtime mag cal not valid");
+		} else {
+				Serial.print(", EEPROM mag cal valid");
+		}
+		if (imu->getAccelCalibrationValid())
+			Serial.println(", EEPROM Accel cal valid");
+		else
+			Serial.println(", No accel cal");
+		Serial.print("Data Transmission Time [us]: ");
+		Serial.println((micros()-currentTime)); // takes about 4ms to send the data
+		Serial.println("-End-----");
+	  } else {
+		if (CUBE) {
+		  CubeUpdate();
+		} else {
+		  BitBucketsUpdate();
+		}  
+	  } // ASCII
+	} // report        
+
+	
     ///////////////////////////////////////////////////////////////
     // Input Commands
     ///////////////////////////////////////////////////////////////
+	
     if (INAVAIL) {
       if (Serial.available()) {
         inByte=Serial.read();
@@ -685,6 +764,7 @@ void loop()
     ///////////////////////////////////////////////////////////////
     // Blink LED if gyro is calibrated otherwise keep it on
     ///////////////////////////////////////////////////////////////
+	
     // But keep LED on if system is moving
     if (GYRO_CALIBRATED == true) {
       if ((currentTime - lastBlink) > LEDBLINK_INTERVAL) {
@@ -722,17 +802,17 @@ void IMUStatusUpdate(){
     bitWrite(systemStatusIMU, STATE_GYROVALID, imuData.gyroValid); 
     bitWrite(systemStatusIMU, STATE_ACCELVALID, imuData.accelValid); 
     bitWrite(systemStatusIMU, STATE_COMPASSVALID, imuData.compassValid); 
-    bitWrite(systemStatusIMU, STATE_IMUTEMPVALID, imuData.IMUtemperatureValid);
+    bitWrite(systemStatusIMU, STATE_IMUTEMPVALID, imuData.temperatureValid);
     //--Update
     bitWrite(systemUpdateIMU, STATE_ACCELRUNTIMEUPDATE, ACCELCALIBRATE );
     bitWrite(systemUpdateIMU, STATE_GYROMANUALUPDATE, imu->getGyroManualCalibrationEnable() );
     bitWrite(systemUpdateIMU, STATE_GYRORUNTIMEUPDATE, imu->getGyroRunTimeCalibrationEnable() );
     bitWrite(systemUpdateIMU, STATE_COMPASSRUNTIMEUPDATE, imu->getCompassRunTimeCalibrationEnable() );
     //--Aux
-    bitWrite(systemStatusAUX, STATE_PRESSUREVALID, imuData.pressureValid);
-    bitWrite(systemStatusAUX, STATE_PRESSURETEMPVALID, imuData.pressureTemperatureValid); 
-    bitWrite(systemStatusAUX, STATE_HUMIDITYVALID, imuData.humidityValid); 
-    bitWrite(systemStatusAUX, STATE_HUMIDITYTEMPVALID, imuData.humidityTemperatureValid); 
+    bitWrite(systemStatusAUX, STATE_PRESSUREVALID, pressureData.pressureValid);
+    bitWrite(systemStatusAUX, STATE_PRESSURETEMPVALID, pressureData.temperatureValid); 
+    bitWrite(systemStatusAUX, STATE_HUMIDITYVALID, humidityData.humidityValid); 
+    bitWrite(systemStatusAUX, STATE_HUMIDITYTEMPVALID, humidityData.temperatureValid); 
 }
 
 void BitBucketsUpdate(){

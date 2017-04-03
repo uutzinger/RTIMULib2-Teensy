@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -43,15 +43,14 @@ public:
     virtual const char *pressureName() { return "MS5637"; }
     virtual int pressureType() { return RTPRESSURE_TYPE_MS5611; }
     virtual bool pressureInit();
-    virtual bool pressureRead(RTIMU_DATA& data);
+    virtual bool pressureRead();
+    virtual int  pressureGetPollInterval();
 
 private:
-    void pressureBackground();
+
     void setTestData();
 
     unsigned char m_pressureAddr;                           // I2C address
-    RTFLOAT m_pressure;                                     // the current pressure
-    RTFLOAT m_pressureTemperature;                          // the current temperature
 
     int m_state;
 
@@ -61,8 +60,6 @@ private:
     uint32_t m_D2;
 
     uint64_t m_timer;                                       // used to time coversions
-
-    bool m_validReadings;
 };
 
 #endif // _RTPRESSUREMS5637_H_

@@ -31,7 +31,6 @@
 #define MS5837_STATE_IDLE               0
 #define MS5837_STATE_TEMPERATURE        1
 #define MS5837_STATE_PRESSURE           2
-#define MS5837_STATE_RESET              3
 
 class RTIMUSettings;
 
@@ -45,16 +44,14 @@ public:
     virtual int pressureType() { return RTPRESSURE_TYPE_MS5837; } 
     virtual bool pressureInit();
     virtual bool pressureReset();
-    virtual bool pressureRead(RTIMU_DATA& data);
+    virtual bool pressureRead();
+    virtual int  pressureGetPollInterval();
 
 private:
-    void pressureBackground();
     void setTestData();
 	uint8_t crc4(uint16_t n_prom[]);
 
     unsigned char m_pressureAddr;                           // I2C address
-    RTFLOAT m_pressure;                                     // the current pressure
-    RTFLOAT m_temperature;                                  // the current temperature
 
     int m_state;
 
@@ -64,8 +61,6 @@ private:
     uint32_t m_D2;
 
     uint64_t m_timer;                                       // used to time coversions
-
-    bool m_validReadings;
 };
 
 #endif // _RTPRESSUREMS5837_H_

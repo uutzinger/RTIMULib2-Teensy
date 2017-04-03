@@ -54,7 +54,7 @@ const char *RTMath::displayDegrees(const char *label, RTVector3& vec)
 
 const char *RTMath::display(const char *label, RTQuaternion& quat)
 {
-    sprintf(m_string, "%s: scalar: %+3.2f, x:%+3.2f, y:%+3.2f, z:%+3.2f\n", label, quat.scalar(), quat.x(), quat.y(), quat.z());
+    sprintf(m_string, "%s: scalar: %+4.4f, x:%+4.4f, y:%+4.4f, z:%+4.4f\n", label, quat.scalar(), quat.x(), quat.y(), quat.z());
     // sprintf(m_string, "%s: scalar: %f, x:%f, y:%f, z:%f\n", label, quat.scalar(), quat.x(), quat.y(), quat.z());
     return m_string;
 }
@@ -89,7 +89,7 @@ const char *RTMath::display(const char *label, RTMatrix4x4& mat)
 
 RTFLOAT RTMath::convertPressureToHeight(RTFLOAT pressure, RTFLOAT staticPressure)
 {
-    return 44330.8 * (1 - pow(pressure / staticPressure, 0.190263));
+    return 44330.8 * (1 - pow(pressure / staticPressure, (RTFLOAT)0.190263));
 }
 
 RTFLOAT RTMath::convertPressureToDepth(RTFLOAT pressure, RTFLOAT staticPressure)
@@ -419,10 +419,9 @@ RTFLOAT RTVector3::squareLength()
    return m_data[0] * m_data[0] + m_data[1] * m_data[1] +
             m_data[2] * m_data[2];
 }
-RTFLOAT RTVector3::toHeading(const RTVector3& mag, float magDeclination)
+RTFLOAT RTVector3::toHeading(const RTVector3& mag, const float declination)
 {
   // Tilt compensated heading from compass, skips conversion to RPY, as those are provided as input
-  // Corrected fort magnetic declination
   RTVector3 rpy = *this;
   float heading;
   
@@ -436,7 +435,7 @@ RTFLOAT RTVector3::toHeading(const RTVector3& mag, float magDeclination)
   // Tilt compensated Magnetic field Y component:
   float Head_Y = mag.y()*cos_roll - mag.z()*sin_roll;
   // Magnetic Heading
-  heading = -atan2(Head_Y,Head_X) - magDeclination;
+  heading = -atan2(Head_Y,Head_X) -declination;
   if(heading < -9990) { heading = 0; }
   heading = RTMath::clamp2PI(heading);
 
@@ -469,6 +468,13 @@ RTQuaternion& RTQuaternion::operator =(const RTQuaternion& quat)
     m_data[2] = quat.m_data[2];
     m_data[3] = quat.m_data[3];
 
+    return *this;
+}
+
+RTQuaternion& RTQuaternion::operator =(const RTFLOAT val)
+{
+    for (int i = 0; i < 4; i++)
+        m_data[i] = val;
     return *this;
 }
 
@@ -747,7 +753,7 @@ void RTQuaternion::fromAngleVector(const RTFLOAT& angle, const RTVector3& vec)
     m_data[3] = vec.z() * sinHalfTheta;
 }
 
-RTFLOAT RTQuaternion::toHeading(const RTVector3& mag, float magDeclination)
+RTFLOAT RTQuaternion::toHeading(const RTVector3& mag, const float declination)
 {
   // Tilt compensated heading from compass
   // Corrected for local magnetic declination
@@ -768,7 +774,7 @@ RTFLOAT RTQuaternion::toHeading(const RTVector3& mag, float magDeclination)
   // Tilt compensated Magnetic field Y component:
   float Head_Y = mag.y()*cos_roll - mag.z()*sin_roll;
   // Magnetic Heading
-  heading = -atan2(Head_Y,Head_X) - magDeclination;
+  heading = -atan2(Head_Y,Head_X) - declination;
 
   if(heading < -9990) { heading = 0; }
   heading = RTMath::clamp2PI(heading);

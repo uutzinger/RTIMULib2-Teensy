@@ -35,21 +35,17 @@ public:
     ~RTHumidityHTU21D();
 
     virtual const char *humidityName() { return "HTU21D"; }
-    virtual int humidityType() { return RTHUMIDITY_TYPE_HTU21D; }
+    virtual int  humidityType() { return RTHUMIDITY_TYPE_HTU21D; }
     virtual bool humidityInit();
-    virtual bool humidityRead(RTIMU_DATA& data);
+    virtual bool humidityRead();
+    virtual int  humidityGetPollInterval();
 
 private:
-    bool processBackground();
 
     unsigned char m_humidityAddr;                           // I2C address
 
     int m_state;
-    uint64_t m_startTime;
-    RTFLOAT m_humidity;                                     // the current humidity
-    RTFLOAT m_temperature;                                  // the current temperature
-    bool m_humidityValid;
-    bool m_temperatureValid;
+    uint64_t m_timer;
 
 };
 

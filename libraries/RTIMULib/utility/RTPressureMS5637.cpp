@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -25,11 +25,17 @@
 
 RTPressureMS5637::RTPressureMS5637(RTIMUSettings *settings) : RTPressure(settings)
 {
-    m_validReadings = false;
 }
 
 RTPressureMS5637::~RTPressureMS5637()
 {
+}
+
+int RTPressureMS5637::pressureGetPollInterval()
+{
+    // return (400 / 122); // available: 0.54 / 1.06 / 2.08 / 4.13 / 8.22 /16.44 ms
+    // osr 4096 takes 8.22ms
+    return (3);
 }
 
 bool RTPressureMS5637::pressureInit()
@@ -50,58 +56,37 @@ bool RTPressureMS5637::pressureInit()
     }
 
     m_state = MS5637_STATE_IDLE;
+
     return true;
 }
 
-bool RTPressureMS5637::pressureRead(RTIMU_DATA& data)
-{
-    data.pressureValid = false;
-    data.pressureTemperatureValid = false;
-    data.pressureTemperature = 0;
-    data.pressure = 0;
-
-    if (m_state == MS5637_STATE_IDLE) {
-        // start pressure conversion
-        if (!m_settings->HALWrite(m_pressureAddr, MS5611_CMD_CONV_D1, 0, 0, "Failed to start MS5611 pressure conversion")) {
-            return false;
-        } else {
-            m_state = MS5637_STATE_PRESSURE;
-            m_timer = RTMath::currentUSecsSinceEpoch();
-        }
-    }
-
-    pressureBackground();
-
-    if (m_validReadings) {
-        data.pressureValid = true;
-        data.pressureTemperatureValid = true;
-        data.pressureTemperature = m_pressureTemperature;
-        data.pressure = m_pressure;
-    }
-    return true;
-}
-
-
-void RTPressureMS5637::pressureBackground()
+bool RTPressureMS5637::pressureRead()
 {
     uint8_t data[3];
+    bool validReadings = false;
 
     switch (m_state) {
         case MS5637_STATE_IDLE:
+		// start pressure conversion, is set to 4096 and 8.22ms
+		if (!m_settings->HALWrite(m_pressureAddr, MS5611_CMD_CONV_D1, 0, 0, "Failed to start MS5611 pressure conversion")) {
+			return false;
+		} else {
+			m_state = MS5637_STATE_PRESSURE;
+			m_timer = RTMath::currentUSecsSinceEpoch();
+		}
         break;
 
         case MS5637_STATE_PRESSURE:
-        if ((RTMath::currentUSecsSinceEpoch() - m_timer) < 10000)
-            break;                                          // not time yet
+		// read pressure
+        if ((RTMath::currentUSecsSinceEpoch() - m_timer) < 9040)  // at OSR 4096 needs 8.22ms
+			return false;
         if (!m_settings->HALRead(m_pressureAddr, MS5611_CMD_ADC, 3, data, "Failed to read MS5611 pressure")) {
-            break;
+			return false;
         }
         m_D1 = (((uint32_t)data[0]) << 16) | (((uint32_t)data[1]) << 8) | ((uint32_t)data[2]);
-
         // start temperature conversion
-
         if (!m_settings->HALWrite(m_pressureAddr, MS5611_CMD_CONV_D2, 0, 0, "Failed to start MS5611 temperature conversion")) {
-            break;
+			return false;
         } else {
             m_state = MS5637_STATE_TEMPERATURE;
             m_timer = RTMath::currentUSecsSinceEpoch();
@@ -109,29 +94,22 @@ void RTPressureMS5637::pressureBackground()
         break;
 
         case MS5637_STATE_TEMPERATURE:
-        if ((RTMath::currentUSecsSinceEpoch() - m_timer) < 10000)
-            break;                                          // not time yet
+		// read temperature
+        if ((RTMath::currentUSecsSinceEpoch() - m_timer) < 9040) // at OSR 4096 need 8.22ms
+            return false;                                         // not time yet
         if (!m_settings->HALRead(m_pressureAddr, MS5611_CMD_ADC, 3, data, "Failed to read MS5611 temperature")) {
-            break;
+            return false;
         }
         m_D2 = (((uint32_t)data[0]) << 16) | (((uint32_t)data[1]) << 8) | ((uint32_t)data[2]);
-
         //  call this function for testing only
         //  should give T = 2000 (20.00C) and pressure 110002 (1100.02hPa)
-
-        // setTestData();
-
+        //  setTestData();
         //  now calculate the real values
-
         int64_t deltaT = (int32_t)m_D2 - (((int32_t)m_calData[4]) << 8);
-
         int32_t temperature = 2000 + ((deltaT * (int64_t)m_calData[5]) >> 23); // note - this still needs to be divided by 100
-
         int64_t offset = (((int64_t)m_calData[1]) << 17) + ((m_calData[3] * deltaT) >> 6);
         int64_t sens = (((int64_t)m_calData[0]) << 16) + ((m_calData[2] * deltaT) >> 7);
-
         //  do second order temperature compensation
-
         if (temperature < 2000) {
             int64_t T2 = (3 * (deltaT * deltaT)) >> 33;
             int64_t offset2 = 61 * ((temperature - 2000) * (temperature - 2000)) / 16;
@@ -146,15 +124,21 @@ void RTPressureMS5637::pressureBackground()
         } else {
             temperature -= (5 * (deltaT * deltaT)) >> 38;
         }
+        m_pressureData.pressure = (RTFLOAT)(((((int64_t)m_D1 * sens) >> 21) - offset) >> 15) / (RTFLOAT)100.0;
+        m_pressureData.temperature = (RTFLOAT)temperature/(RTFLOAT)100;
+        m_pressureData.temperatureValid = true;
+        m_pressureData.pressureValid =  true;
+        m_pressureData.timestamp = RTMath::currentUSecsSinceEpoch();
 
-        m_pressure = (RTFLOAT)(((((int64_t)m_D1 * sens) >> 21) - offset) >> 15) / (RTFLOAT)100.0;
-        m_pressureTemperature = (RTFLOAT)temperature/(RTFLOAT)100;
-
-        // printf("Temp: %f, pressure: %f\n", m_pressureTemperature, m_pressure);
-
-        m_validReadings = true;
+        // printf("Temp: %f, pressure: %f\n", m_temperature, m_pressure);
+        validReadings = true;
         m_state = MS5637_STATE_IDLE;
         break;
+    }
+	if (validReadings) {
+      return true;
+	} else {
+      return false;
     }
 }
 

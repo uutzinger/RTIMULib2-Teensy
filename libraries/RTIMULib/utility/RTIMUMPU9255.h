@@ -107,7 +107,7 @@ private:
 
     bool m_firstTime;                                       // if first sample
 
-    RTFLOAT m_IMUtemperature_previous;
+    RTFLOAT m_temperature_previous;
     unsigned char m_slaveAddr;                              // I2C address of MPU9150
 
     unsigned char m_gyroLpf;                                // gyro low pass filter setting

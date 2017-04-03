@@ -24,16 +24,21 @@
 #include "RTHumidityHTS221.h"
 #include "RTHumidityDefs.h"
 
+#define HTS221_STATE_IN_RESET           0                   // reset in progress
+#define HTS221_STATE_DATA_REQ           2                   // requested temperature and humidity
+
 RTHumidityHTS221::RTHumidityHTS221(RTIMUSettings *settings) : RTHumidity(settings)
 {
-    m_humidityValid = false;
-    m_temperatureValid = false;
-    m_humidity = -1.0;
-    m_temperature = 0.0;
- }
+}
 
 RTHumidityHTS221::~RTHumidityHTS221()
 {
+}
+
+int RTHumidityHTS221::humidityGetPollInterval()
+{
+    // return (400 / 12.5);
+    return (32);
 }
 
 bool RTHumidityHTS221::humidityInit()
@@ -51,11 +56,11 @@ bool RTHumidityHTS221::humidityInit()
 
     m_humidityAddr = m_settings->m_I2CHumidityAddress;
 
-    if (!m_settings->HALWrite(m_humidityAddr, HTS221_CTRL1, 0x87, "Failed to set HTS221 CTRL_REG_1"))
+    if (!m_settings->HALWrite(m_humidityAddr, HTS221_CTRL1, 0x87, "Failed to set HTS221 CTRL_REG_1")) //12.5Hz
         return false;
 
     if (!m_settings->HALWrite(m_humidityAddr, HTS221_AV_CONF, 0x1b, "Failed to set HTS221 AV_CONF"))
-        return false;
+        return false; // 16 average temp, 32 average humidity
 
     // Get calibration data
 
@@ -101,44 +106,70 @@ bool RTHumidityHTS221::humidityInit()
     m_humidity_m = (H1-H0)/(H1_T0_OUT-H0_T0_OUT);
     m_humidity_c = (H0)-(m_humidity_m*H0_T0_OUT);
 
+    m_humidityData.humidityValid = false;
+    m_humidityData.humidity = -9999.9999;
+    m_humidityData.temperatureValid = false;
+    m_humidityData.temperature = -9999.9999;
+	
+    m_state = HTS221_STATE_IN_RESET;
+    m_timer = RTMath::currentUSecsSinceEpoch();
+
     return true;
 }
 
-
-bool RTHumidityHTS221::humidityRead(RTIMU_DATA& data)
+bool RTHumidityHTS221::humidityRead()
 {
-    unsigned char rawData[2];
+	unsigned char rawData[2];
     unsigned char status;
 
-    data.humidityValid = false;
-    data.humidityTemperatureValid = false;
-    data.humidityTemperature = 0.0f;
-    data.humidity = -1.0f;
+	bool validReadings = false;
 
-    if (!m_settings->HALRead(m_humidityAddr, HTS221_STATUS, 1, &status, "Failed to read HTS221 status"))
+    switch (m_state) {
+
+    case HTS221_STATE_IN_RESET:
+        // printf("State: reset\n");
+        if ((RTMath::currentUSecsSinceEpoch() - m_timer) <= 1000000) // 1 second for reset
+            return false;                                            // not time yet
+        m_state = HTS221_STATE_DATA_REQ;
+        break;
+
+    case HTS221_STATE_DATA_REQ:
+
+        if ((RTMath::currentUSecsSinceEpoch() - m_timer) <= 80000) // 12.5Hz = 80ms
+            return false;                                          // not time yet
+
+        if (!m_settings->HALRead(m_humidityAddr, HTS221_STATUS, 1, &status, "Failed to read HTS221 status"))
+             return false;
+
+        if (status & 2) {
+            if (!m_settings->HALRead(m_humidityAddr, HTS221_HUMIDITY_OUT_L + 0x80, 2, rawData, "Failed to read HTS221 humidity"))
+                return false;
+
+            m_humidityData.humidityValid = false;
+            m_humidityData.humidity = (int16_t)((((unsigned int)rawData[1]) << 8) | (unsigned int)rawData[0]);
+            m_humidityData.humidity = m_humidityData.humidity * m_humidity_m + m_humidity_c;
+            m_humidityData.humidityValid = true;
+ 		    m_humidityData.timestamp = RTMath::currentUSecsSinceEpoch();
+	        validReadings = true;
+        }
+	
+        if (status & 1) {
+            if (!m_settings->HALRead(m_humidityAddr, HTS221_TEMP_OUT_L + 0x80, 2, rawData, "Failed to read HTS221 temperature"))
+                return false;
+
+            m_humidityData.temperatureValid = false;
+            m_humidityData.temperature = (int16_t)((((unsigned int)rawData[1]) << 8) | (unsigned int)rawData[0]);
+            m_humidityData.temperature = m_humidityData.temperature * m_temperature_m + m_temperature_c;
+            m_humidityData.temperatureValid = true;
+        }
+
+        m_timer = RTMath::currentUSecsSinceEpoch();
+        break;
+    }
+	
+    if (validReadings) {
+        return true;
+	} else {
         return false;
-
-    if (status & 2) {
-        if (!m_settings->HALRead(m_humidityAddr, HTS221_HUMIDITY_OUT_L + 0x80, 2, rawData, "Failed to read HTS221 humidity"))
-            return false;
-
-        m_humidity = (int16_t)((((unsigned int)rawData[1]) << 8) | (unsigned int)rawData[0]);
-        m_humidity = m_humidity * m_humidity_m + m_humidity_c;
-        m_humidityValid = true;
-    }
-    if (status & 1) {
-        if (!m_settings->HALRead(m_humidityAddr, HTS221_TEMP_OUT_L + 0x80, 2, rawData, "Failed to read HTS221 temperature"))
-            return false;
-
-        m_temperature = (int16_t)((((unsigned int)rawData[1]) << 8) | (unsigned int)rawData[0]);
-        m_temperature = m_temperature * m_temperature_m + m_temperature_c;
-        m_temperatureValid = true;
-    }
-
-    data.humidityValid = m_humidityValid;
-    data.humidity = m_humidity;
-    data.humidityTemperatureValid = m_temperatureValid;
-    data.humidityTemperature = m_temperature;
-
-    return true;
+	}
 }

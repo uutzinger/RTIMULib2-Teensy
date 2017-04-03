@@ -202,16 +202,9 @@ bool RTIMUMPU9255::IMUInit()
     m_imuData.accelValid = true;
     m_imuData.compassValid = true;
     m_imuData.motion = true;
-    m_imuData.IMUtemperatureValid = false;
-    m_imuData.IMUtemperature = 0.0;
-    m_imuData.humidityValid = false;
-    m_imuData.humidity = -1.0;
-    m_imuData.humidityTemperatureValid = false;
-    m_imuData.humidityTemperature = 0.0;
-    m_imuData.pressureValid = false;
-    m_imuData.pressure = 0.0;
-    m_imuData.pressureTemperatureValid = false;
-    m_imuData.pressureTemperature = 0.0;
+    m_imuData.temperatureValid = false;
+    m_imuData.temperature = 0.0;
+
 	
     //  configure IMU
 
@@ -675,8 +668,8 @@ bool RTIMUMPU9255::IMURead()
     #if MPU9255_FIFO_WITH_TEMP == 1
         // Temperature
        
-        m_imuData.IMUtemperature =  ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f;  // combined registers and convert to temperature
-        m_imuData.IMUtemperatureValid = true;
+        m_imuData.temperature =  ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f;  // combined registers and convert to temperature
+        m_imuData.temperatureValid = true;
         // Gyroscope
         RTMath::convertToVector(fifoData + 8, m_imuData.gyro, m_gyroScale, true);
          // Compass
@@ -688,8 +681,8 @@ bool RTIMUMPU9255::IMURead()
     #else // no temp in fifo
 	    // Temperature
 
-        m_imuData.IMUtemperature = ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f; // combined registers and convert to temperature
-        m_imuData.IMUtemperatureValid = true;
+        m_imuData.temperature = ((RTFLOAT)((int16_t)(((uint16_t)fifoData[6] << 8) | (uint16_t)fifoData[7])) / 333.87f ) + 21.0f; // combined registers and convert to temperature
+        m_imuData.temperatureValid = true;
 		// ((TEMP_OUT – RoomTemp_Offset)/Temp_Sensitivity) + 21degC
 		// 333.87 = sensitivity
 		// 0 = room temp offset at 21
@@ -736,12 +729,12 @@ bool RTIMUMPU9255::IMURead()
     m_firstTime = false;
 	
     //  now do standard processing
-    if (m_imuData.IMUtemperatureValid == true) {
+    if (m_imuData.temperatureValid == true) {
         // Check if temperature changed
-        if (fabs(m_imuData.IMUtemperature - m_IMUtemperature_previous) >= TEMPERATURE_DELTA) {
+        if (fabs(m_imuData.temperature - m_temperature_previous) >= TEMPERATURE_DELTA) {
             // If yes, update bias
-            updateTempBias(m_imuData.IMUtemperature);
-            m_IMUtemperature_previous = m_imuData.IMUtemperature;
+            updateTempBias(m_imuData.temperature);
+            m_temperature_previous = m_imuData.temperature;
         }
         // Then do
         handleTempBias(); 	// temperature Correction

@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////
 //
-//  This file is part of RTPRESSURELib
+//  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -27,6 +27,7 @@
 #include "RTIMUSettings.h"
 #include "RTIMULibDefs.h"
 #include "RTPressureDefs.h"
+#include "RunningAverage.h"
 
 class RTPressure
 {
@@ -39,16 +40,24 @@ public:
 
     RTPressure(RTIMUSettings *settings);
     virtual ~RTPressure();
+    RTFLOAT updateAveragePressure(RTFLOAT& pressure);
+
 
     //  These functions must be provided by sub classes
 
     virtual const char *pressureName() = 0;                 // the name of the pressure sensor
-    virtual int pressureType() = 0;                         // the type code of the pressure sensor
+    virtual int  pressureType() = 0;                        // the type code of the pressure sensor
     virtual bool pressureInit() = 0;                        // set up the pressure sensor
-    virtual bool pressureRead(RTIMU_DATA& data) = 0;        // get latest value
+    virtual bool pressureRead() = 0;                        // get latest value
+    virtual int  pressureGetPollInterval() = 0;             // get recommended polling interval
+
+    const PRESSURE_DATA& getPressureData() { return m_pressureData; }
+    const RTFLOAT& getPressureTemp() { return m_pressureData.temperature; } // gets temperature data in C
 
 protected:
     RTIMUSettings *m_settings;                              // the settings object pointer
+    PRESSURE_DATA m_pressureData;                           // the data from the pressure sensor
+    RunningAverage *m_pressure_avg;                         // Running average for pressure sensor
 
 };
 

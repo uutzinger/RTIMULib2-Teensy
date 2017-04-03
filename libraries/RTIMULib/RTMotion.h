@@ -15,6 +15,7 @@
 
 // #define RTIMU_FUZZY_GYRO_ZERO      0.20
 #define RTIMU_FUZZY_GYRO_ZERO         0.07
+#define RTIMU_FUZZY_GYRO_MAX          1.0
 #define RTIMU_FUZZY_DELTA_GYRO_ZERO   0.01
 // defines the threshold for fast/slow learning
 #define RTIMU_FUZZY_GYRO_BIAS         0.01

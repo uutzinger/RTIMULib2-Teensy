@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -61,7 +61,6 @@
 #define HMC5883_ADDRESS             0x1e
 
 //  Register map
-
 #define MPU9150_XG_OFFS_TC          0x00 // Bit 7 PWR_MODE, bits 6:1 XG_OFFS_TC, bit 0 OTP_BNK_VLD
 #define MPU9150_YG_OFFS_TC          0x01 // Power Mode, read or change auxiliary I2C Voltage Level
 #define MPU9150_ZG_OFFS_TC          0x02 

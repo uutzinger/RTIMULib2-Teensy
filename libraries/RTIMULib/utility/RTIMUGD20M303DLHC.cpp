@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -54,16 +54,8 @@ bool RTIMUGD20M303DLHC::IMUInit()
     m_imuData.accelValid = true;
     m_imuData.compassValid = true;
     m_imuData.motion = true;
-    m_imuData.IMUtemperatureValid = false;
-    m_imuData.IMUtemperature = 0.0;
-    m_imuData.humidityValid = false;
-    m_imuData.humidity = -1.0;
-    m_imuData.humidityTemperatureValid = false;
-    m_imuData.humidityTemperature = 0.0;
-    m_imuData.pressureValid = false;
-    m_imuData.pressure = 0.0;
-    m_imuData.pressureTemperatureValid = false;
-    m_imuData.pressureTemperature = 0.0;
+    m_imuData.temperatureValid = false;
+    m_imuData.temperature = 0.0;
 
 
     //  configure IMU
@@ -264,8 +256,7 @@ bool RTIMUGD20M303DLHC::setAccelCTRL1()
 bool RTIMUGD20M303DLHC::setAccelCTRL4()
 {
     unsigned char ctrl4;
-    
-// there is discrepancy with raspberry code here
+
     switch (m_settings->m_GD20M303DLHCAccelFsr) {
     case LSM303DLHC_ACCEL_FSR_2:
         m_accelScale = (RTFLOAT)0.001 / (RTFLOAT)16;

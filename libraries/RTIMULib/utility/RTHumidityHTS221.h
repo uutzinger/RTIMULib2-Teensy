@@ -35,21 +35,22 @@ public:
     ~RTHumidityHTS221();
 
     virtual const char *humidityName() { return "HTS221"; }
-    virtual int humidityType() { return RTHUMIDITY_TYPE_HTS221; }
+    virtual int  humidityType() { return RTHUMIDITY_TYPE_HTS221; }
     virtual bool humidityInit();
-    virtual bool humidityRead(RTIMU_DATA& data);
+    virtual bool humidityRead();
+    virtual int  humidityGetPollInterval();
 
 private:
+
     unsigned char m_humidityAddr;                           // I2C address
 
-    RTFLOAT m_humidity;                                     // the current humidity
-    RTFLOAT m_temperature;                                  // the current temperature
+    int m_state;
+    uint64_t m_timer;
+
     RTFLOAT m_temperature_m;                                // temperature calibration slope
     RTFLOAT m_temperature_c;                                // temperature calibration y intercept
     RTFLOAT m_humidity_m;                                   // humidity calibration slope
     RTFLOAT m_humidity_c;                                   // humidity calibration y intercept
-    bool m_humidityValid;
-    bool m_temperatureValid;
 
 };
 

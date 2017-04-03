@@ -32,9 +32,10 @@
 #include <Arduino.h>
 #include <SPI.h>
 
-#define HAL_QUIET
+// #define HAL_QUIET
 
 #ifndef HAL_QUIET
+
 #define HAL_INFO(m) Serial.printf(m);
 #define HAL_INFO1(m, x)  Serial.printf(m, x);
 #define HAL_INFO2(m, x, y)  Serial.printf(m, x, y);

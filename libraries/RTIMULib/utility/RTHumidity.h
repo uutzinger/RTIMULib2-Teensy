@@ -47,12 +47,16 @@ public:
     virtual const char *humidityName() = 0;                 // the name of the humidity sensor
     virtual int humidityType() = 0;                         // the type code of the humidity sensor
     virtual bool humidityInit() = 0;                        // set up the humidity sensor
-    virtual bool humidityRead(RTIMU_DATA& data) = 0;        // get latest value
+    virtual bool humidityRead() = 0;                        // get latest value
+    virtual int  humidityGetPollInterval() = 0;             // get recommended polling interval
+
+    const HUMIDITY_DATA& getHumidityData() { return m_humidityData; }
+    const RTFLOAT&       getHumidityTemp() { return m_humidityData.temperature; } // gets temperature data in C
 
 protected:
-    RTIMUSettings *m_settings;                              // the settings object pointer
+    RTIMUSettings  *m_settings;                             // the settings object pointer
     RunningAverage *m_humidity_avg;                         // Running average for humidity sensor
-  
+    HUMIDITY_DATA   m_humidityData;                         // the data from the IMU
 
 };
 

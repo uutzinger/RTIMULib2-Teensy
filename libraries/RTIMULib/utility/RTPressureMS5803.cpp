@@ -27,11 +27,17 @@
 
 RTPressureMS5803::RTPressureMS5803(RTIMUSettings *settings) : RTPressure(settings)
 {
-    m_validReadings = false;
 }
 
 RTPressureMS5803::~RTPressureMS5803()
 {
+}
+
+int RTPressureMS5803::pressureGetPollInterval()
+{
+    // return (400 / 122); // available: 0.54 / 1.06 / 2.08 / 4.13 / 8.22 ms
+    // osr 4096 takes 8.22ms
+    return (3);
 }
 
 bool RTPressureMS5803::reset()
@@ -43,6 +49,7 @@ bool RTPressureMS5803::reset()
     } else {
         return true;
     }
+
 }
 
 bool RTPressureMS5803::pressureInit()
@@ -75,36 +82,7 @@ bool RTPressureMS5803::pressureInit()
     return true;
 }
     
-bool RTPressureMS5803::pressureRead(RTIMU_DATA& data)
-{
-    data.pressureValid = false;
-    data.pressureTemperatureValid = false;
-    data.pressureTemperature = 0;
-    data.pressure = 0;
-
-    if (m_state == MS5803_STATE_IDLE) {
-        // start pressure conversion with maximum precision 4096
-        if (!m_settings->HALWrite(m_pressureAddr, MS5611_CMD_CONV_D1, 0, 0, "Failed to start MS5803 pressure conversion")) {
-            return false;
-        } else {
-            m_state = MS5803_STATE_PRESSURE;
-            m_timer = RTMath::currentUSecsSinceEpoch();
-        }
-    }
-
-    pressureBackground();
-
-    if (m_validReadings) {
-        data.pressureValid = true;
-        data.pressure = m_pressure;
-        data.pressureTemperatureValid = true;
-        data.pressureTemperature = m_pressureTemperature;
-    }
-    return true;
-}
-
-
-void RTPressureMS5803::pressureBackground()
+bool RTPressureMS5803::pressureRead()
 {
     uint8_t data[3];
     int32_t deltaT;
@@ -115,15 +93,24 @@ void RTPressureMS5803::pressureBackground()
     int64_t offset2;
     int64_t sens2;
     
+    bool validReadings = false;
+
     switch (m_state) {
         case MS5803_STATE_IDLE:
+        // start pressure conversion with maximum precision 4096
+        if (!m_settings->HALWrite(m_pressureAddr, MS5611_CMD_CONV_D1, 0, 0, "Failed to start MS5803 pressure conversion")) {
+            return false;
+        } else {
+            m_state = MS5803_STATE_PRESSURE;
+            m_timer = RTMath::currentUSecsSinceEpoch();
+        }
         break;
 
         case MS5803_STATE_PRESSURE:
-        if ((RTMath::currentUSecsSinceEpoch() - m_timer) < 11000) // need to wait 10ms until conversion complete at highest precision
-            break;  // not time yet
+        if ((RTMath::currentUSecsSinceEpoch() - m_timer) < 9040) // need to wait 10ms until conversion complete at highest precision
+            return false;  // not time yet
         if (!m_settings->HALRead(m_pressureAddr, MS5611_CMD_ADC, 3, data, "Failed to read MS5803 pressure")) {
-            break;
+            return false;
         }
         m_D1 = ((uint32_t)data[0] << 16) + ((uint32_t)data[1] << 8) + (uint32_t)data[2];
 
@@ -132,7 +119,7 @@ void RTPressureMS5803::pressureBackground()
         // start temperature conversion
 
         if (!m_settings->HALWrite(m_pressureAddr, MS5611_CMD_CONV_D2, 0, 0, "Failed to start MS5803 temperature conversion")) {
-            break;
+            return false;
         } else {
             m_state = MS5803_STATE_TEMPERATURE;
             m_timer = RTMath::currentUSecsSinceEpoch();
@@ -140,10 +127,10 @@ void RTPressureMS5803::pressureBackground()
         break;
 
         case MS5803_STATE_TEMPERATURE:
-        if ((RTMath::currentUSecsSinceEpoch() - m_timer) < 10000) // takes 10ms until conversion at highest precision
-            break;  // not time yet
+        if ((RTMath::currentUSecsSinceEpoch() - m_timer) < 9040) // takes 10ms until conversion at highest precision
+           return false;  // not time yet
         if (!m_settings->HALRead(m_pressureAddr, MS5611_CMD_ADC, 3, data, "Failed to read MS58031 temperature")) {
-            break;
+           return false;
         }
 		
         m_D2 = ((uint32_t)data[0] << 16) + ((uint32_t)data[1] << 8) + (uint32_t)data[2];
@@ -190,13 +177,22 @@ void RTPressureMS5803::pressureBackground()
         //printf("sens calib: %lld\n", sens);
 
         // now lets calculate temperature compensated pressure
-        m_pressure = (RTFLOAT)(((m_D1 * sens)/ 2097152 - offset) / 32768) / 10.0;
-        m_pressureTemperature = (RTFLOAT)temperature/100.0;
+        m_pressureData.pressure = (RTFLOAT)(((m_D1 * sens)/ 2097152 - offset) / 32768) / 10.0;
+        m_pressureData.temperature = (RTFLOAT)temperature/100.0;
+        m_pressureData.temperatureValid = true;
+        m_pressureData.pressureValid =  true;
+		m_pressureData.timestamp = RTMath::currentUSecsSinceEpoch();
 
-        //printf("Temp: %f, pressure: %f\n", m_pressureTemperature, m_pressure);
+        //printf("Temp: %f, pressure: %f\n", m_pressureData.temperature, m_pressureData.pressure);
 
-        m_validReadings = true;
+        validReadings = true;
         m_state = MS5803_STATE_IDLE;
         break;
+    }
+
+	if (validReadings) {
+      return true;
+	} else {
+      return false;
     }
 }

@@ -33,15 +33,16 @@
 
 RTHumidityHTU21D::RTHumidityHTU21D(RTIMUSettings *settings) : RTHumidity(settings)
 {
-    m_humidityValid = false;
-    m_temperatureValid = false;
-    m_humidity = -1.0f;
-    m_temperature = 0.0f;
-
- }
+}
 
 RTHumidityHTU21D::~RTHumidityHTU21D()
 {
+}
+
+int RTHumidityHTU21D::humidityGetPollInterval()
+{
+    // return (round(400.0 / 62.5));
+    return (7);
 }
 
 bool RTHumidityHTU21D::humidityInit()
@@ -52,77 +53,84 @@ bool RTHumidityHTU21D::humidityInit()
         return false;
 
     m_state = HTU21D_STATE_IN_RESET;
-    m_startTime = RTMath::currentUSecsSinceEpoch();
+    m_timer = RTMath::currentUSecsSinceEpoch();
+
+    m_humidityData.humidityValid = false;
+    m_humidityData.humidity = -9999.9999;
+    m_humidityData.temperatureValid = false;
+    m_humidityData.temperature = -9999.9999;
 
     return true;
 }
 
-
-bool RTHumidityHTU21D::humidityRead(RTIMU_DATA& data)
-{
-    if (!processBackground())
-        return false;
-
-    data.humidityValid = m_humidityValid;
-    data.humidity = m_humidity;
-    data.humidityTemperatureValid = m_temperatureValid;
-    data.humidityTemperature = m_temperature;
-
-    return true;
-}
-
-bool RTHumidityHTU21D:: processBackground()
+bool RTHumidityHTU21D::humidityRead()
 {
     unsigned char rawData[3];
-    uint64_t now = RTMath::currentUSecsSinceEpoch();
-    bool expired = (now - m_startTime) >= HTU21D_STATE_INTERVAL;
-
-    if (!expired)
-        return true;
+    bool validReadings = false;
 
     switch (m_state) {
+        
     case HTU21D_STATE_IN_RESET:
+        // printf("State: reset\n");
+        if ((RTMath::currentUSecsSinceEpoch() - m_timer) <= 1000000) // 1 second for reset
+            return false;                                          // not time yet
         m_state = HTU21D_STATE_IDLE;
-        m_startTime = now;
         break;
 
     case HTU21D_STATE_IDLE:
+        // printf("State: idle\n");
         // start a temperature conversion
         if (!m_settings->HALWrite(m_humidityAddr, HTU21D_CMD_TRIG_TEMP, 0, NULL, "Failed to start HTU21D temp conv"))
             return false;
         m_state = HTU21D_STATE_TEMP_REQ;
-        m_startTime = now;
+        m_timer = RTMath::currentUSecsSinceEpoch();
         break;
 
     case HTU21D_STATE_TEMP_REQ:
-        // read temp data
+        // read temperature data
+        // printf("State: temp\n");
+        if ((RTMath::currentUSecsSinceEpoch() - m_timer) <= 45000) // 44ms needed for 14 bits
+            return false;                                          // not time yet
         if (!m_settings->HALRead(m_humidityAddr, 3, rawData, "Failed to read HTU21D temperature"))
             return false;
         // remove status bits
         rawData[1] &= 0xfc;
-        m_temperature = -46.85 + 175.72 * (RTFLOAT)((((uint16_t)rawData[0]) << 8) | (uint16_t)rawData[1]) / 65536.0;
-        m_temperatureValid = true;
+        m_humidityData.temperature = -46.85 + 175.72 * (RTFLOAT)((((uint16_t)rawData[0]) << 8) | (uint16_t)rawData[1]) / 65536.0;
+        m_humidityData.temperatureValid = true;
 
         // start humidity conversion
         if (!m_settings->HALWrite(m_humidityAddr, HTU21D_CMD_TRIG_HUM, 0, NULL, "Failed to start HTU21D humidity conv"))
             return false;
+        
         m_state = HTU21D_STATE_HUM_REQ;
-        m_startTime = now;
+        m_timer = RTMath::currentUSecsSinceEpoch();
         break;
 
     case HTU21D_STATE_HUM_REQ:
         // read humidity data
+        // printf("State: humidity");
+        if ((RTMath::currentUSecsSinceEpoch() - m_timer) <= 15000) // 16ms needed for 12 bits
+            return false;                                          // not time yet
         if (!m_settings->HALRead(m_humidityAddr, 3, rawData, "Failed to read HTU21D humidity"))
             return false;
         // remove status bits
         rawData[1] &= 0xfc;
-        m_humidity = -6.0 + 125.0 * (RTFLOAT)((((uint16_t)rawData[0]) << 8) | (uint16_t)rawData[1]) / 65536.0;
+        m_humidityData.humidityValid = false;
+        m_humidityData.humidity = -6.0 + 125.0 * (RTFLOAT)((((uint16_t)rawData[0]) << 8) | (uint16_t)rawData[1]) / 65536.0;
         // do temp compensation
-        m_humidity += (25.0 - m_temperature) * -0.15;
-        m_humidityValid = true;
+        m_humidityData.humidity += (25.0 - m_humidityData.temperature) * -0.15;
+        m_humidityData.humidityValid = true;
+		m_humidityData.timestamp = RTMath::currentUSecsSinceEpoch();
+        
         m_state = HTU21D_STATE_IDLE;
-        m_startTime = now;
+        validReadings = true;
+        // printf("P: %f, T: %f\n", m_humidity, m_temperature);
         break;
     }
-    return true;
+    
+	if (validReadings) {
+      return true;
+	} else {
+      return false;
+    }
 }

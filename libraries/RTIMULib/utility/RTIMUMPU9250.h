@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -69,10 +69,9 @@ typedef struct
     unsigned char temperature[2];                           // the raw temperature reading
     #endif
 } MPU9250_CACHE_BLOCK;
+
 #endif
-
 #define TEMPERATURE_DELTA 0.05f                             // change in temperature necessary to recompute the biases
-
 
 class RTIMUMPU9250 : public RTIMU
 {
@@ -94,6 +93,7 @@ public:
     virtual int IMUGetPollInterval();
 
 protected:
+
     RTFLOAT m_compassAdjust[3];                             // the compass fuse ROM values converted for use
 
 private:
@@ -107,8 +107,9 @@ private:
     bool bypassOff();
 
     bool m_firstTime;                                       // if first sample
-    RTFLOAT m_IMUtemperature_previous;
-    unsigned char m_slaveAddr;                              // I2C address of MPU9250
+
+    RTFLOAT m_temperature_previous;
+    unsigned char m_slaveAddr;                              // I2C address of MPU9150
 
     unsigned char m_gyroLpf;                                // gyro low pass filter setting
     unsigned char m_accelLpf;                               // accel low pass filter setting
@@ -118,12 +119,14 @@ private:
 
     RTFLOAT m_gyroScale;
     RTFLOAT m_accelScale;
+
 #ifdef MPU9250_CACHE_MODE
 
     MPU9250_CACHE_BLOCK m_cache[MPU9250_CACHE_BLOCK_COUNT]; // the cache itself
     int m_cacheIn;                                          // the in index
     int m_cacheOut;                                         // the out index
     int m_cacheCount;                                       // number of used cache blocks
+
 #endif
 
 };

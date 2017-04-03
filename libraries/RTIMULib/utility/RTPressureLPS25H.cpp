@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -26,43 +26,43 @@
 
 RTPressureLPS25H::RTPressureLPS25H(RTIMUSettings *settings) : RTPressure(settings)
 {
-    m_pressureValid = false;
-    m_pressureTemperatureValid = false;
- }
+}
 
 RTPressureLPS25H::~RTPressureLPS25H()
 {
+}
+
+int RTPressureLPS25H::pressureGetPollInterval()
+{
+    // return (400 / 25); //25 Hz update rate, 1,7,12.5 also available
+    return (16);
 }
 
 bool RTPressureLPS25H::pressureInit()
 {
     m_pressureAddr = m_settings->m_I2CPressureAddress;
 
-    if (!m_settings->HALWrite(m_pressureAddr, LPS25H_CTRL_REG_1, 0xc4, "Failed to set LPS25H CTRL_REG_1"))
+    if (!m_settings->HALWrite(m_pressureAddr, LPS25H_CTRL_REG_1, 0xc4, "Failed to set LPS25H CTRL_REG_1")) // 25Hz Output data rate
         return false;
 
-    if (!m_settings->HALWrite(m_pressureAddr, LPS25H_RES_CONF, 0x05, "Failed to set LPS25H RES_CONF"))
+    if (!m_settings->HALWrite(m_pressureAddr, LPS25H_RES_CONF, 0x05, "Failed to set LPS25H RES_CONF")) // temperature 16 and pressure 32 internal average
         return false;
 
-    if (!m_settings->HALWrite(m_pressureAddr, LPS25H_FIFO_CTRL, 0xc0, "Failed to set LPS25H FIFO_CTRL"))
+    if (!m_settings->HALWrite(m_pressureAddr, LPS25H_FIFO_CTRL, 0xc0, "Failed to set LPS25H FIFO_CTRL"))  // FIFO averaging mode
         return false;
 
-    if (!m_settings->HALWrite(m_pressureAddr, LPS25H_CTRL_REG_2, 0x40, "Failed to set LPS25H CTRL_REG_2"))
+    if (!m_settings->HALWrite(m_pressureAddr, LPS25H_CTRL_REG_2, 0x40, "Failed to set LPS25H CTRL_REG_2")) // FIFO enabled
         return false;
 
     return true;
 }
 
-
-bool RTPressureLPS25H::pressureRead(RTIMU_DATA& data)
+bool RTPressureLPS25H::pressureRead()
 {
     unsigned char rawData[3];
     unsigned char status;
 
-    data.pressureValid = false;
-    data.pressureTemperatureValid = false;
-    data.pressureTemperature = 0;
-    data.pressure = 0;
+    bool validReadings = false;
 
     if (!m_settings->HALRead(m_pressureAddr, LPS25H_STATUS_REG, 1, &status, "Failed to read LPS25H status"))
         return false;
@@ -71,21 +71,23 @@ bool RTPressureLPS25H::pressureRead(RTIMU_DATA& data)
         if (!m_settings->HALRead(m_pressureAddr, LPS25H_PRESS_OUT_XL + 0x80, 3, rawData, "Failed to read LPS25H pressure"))
             return false;
 
-        m_pressure = (RTFLOAT)((((unsigned int)rawData[2]) << 16) | (((unsigned int)rawData[1]) << 8) | (unsigned int)rawData[0]) / (RTFLOAT)4096;
-        m_pressureValid = true;
+        m_pressureData.pressure = (RTFLOAT)((((unsigned int)rawData[2]) << 16) | (((unsigned int)rawData[1]) << 8) | (unsigned int)rawData[0]) / (RTFLOAT)4096;
+        m_pressureData.pressureValid = true;
+        m_pressureData.timestamp = RTMath::currentUSecsSinceEpoch();
+		validReadings = true;
+
     }
     if (status & 1) {
         if (!m_settings->HALRead(m_pressureAddr, LPS25H_TEMP_OUT_L + 0x80, 2, rawData, "Failed to read LPS25H temperature"))
             return false;
 
-        m_pressureTemperature = (int16_t)((((unsigned int)rawData[1]) << 8) | (unsigned int)rawData[0]) / (RTFLOAT)480 + (RTFLOAT)42.5;
-        m_pressureTemperatureValid = true;
+        m_pressureData.temperature = (int16_t)((((unsigned int)rawData[1]) << 8) | (unsigned int)rawData[0]) / (RTFLOAT)480 + (RTFLOAT)42.5;
+        m_pressureData.temperatureValid = true;
     }
 
-    data.pressureValid = m_pressureValid;
-    data.pressure = m_pressure;
-    data.pressureTemperatureValid = m_pressureTemperatureValid;
-    data.pressureTemperature = m_pressureTemperature;
-
-    return true;
+	if (validReadings) {
+      return true;
+	} else {
+      return false;
+    }
 }

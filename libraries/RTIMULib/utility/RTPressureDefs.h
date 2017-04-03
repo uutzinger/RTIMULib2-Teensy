@@ -2,7 +2,7 @@
 //
 //  This file is part of RTIMULib
 //
-//  Copyright (c) 2014-2015, richards-tech
+//  Copyright (c) 2014-2015, richards-tech, LLC
 //
 //  Permission is hereby granted, free of charge, to any person obtaining a copy of
 //  this software and associated documentation files (the "Software"), to deal in
@@ -99,8 +99,8 @@
 //	commands
 
 #define MS5611_CMD_RESET            0x1e // reset
-#define MS5611_CMD_CONV_D1          0x48 // convert D1 OSR=4096
-#define MS5611_CMD_CONV_D2          0x58 // convert D2 OSR=4096
+#define MS5611_CMD_CONV_D1          0x48 // convert D1 OSR=4096, 8.22ms
+#define MS5611_CMD_CONV_D2          0x58 // convert D2 OSR=4096, 8.22ms
 #define MS5611_CMD_PROM             0xa0 // PROM read a0-ae
 #define MS5611_CMD_ADC              0x00 // adc read
 #define MS5611_CMD_ADC_CONV         0x40 // adc conversion command
