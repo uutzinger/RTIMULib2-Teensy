@@ -431,7 +431,8 @@ void doAccelMinMaxCal()
         break;
 
       case ' ':
-        if (++accelCurrentAxis == 3) accelCurrentAxis = 0;
+        accelCurrentAxis = accelCurrentAxis+1;
+        if (accelCurrentAxis == 3) accelCurrentAxis = 0;
         break;
 
       case 's':
